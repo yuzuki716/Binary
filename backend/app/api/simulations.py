@@ -39,8 +39,8 @@ async def create_simulation(body: SimulationCreate, db: AsyncSession = Depends(g
 
     create_progress_queue(sim_id)
 
-    # Start background task
-    asyncio.create_task(run_simulation(sim_id, body, db))
+    # Start background task (worker creates its own DB session)
+    asyncio.create_task(run_simulation(sim_id, body))
 
     return SimulationStatus(
         id=sim.id,

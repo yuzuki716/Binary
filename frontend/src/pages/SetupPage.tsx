@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { fetchSymbols, createSimulation, createBatch } from '../api'
+import client from '../api/client'
 import type { SymbolInfo } from '../types'
 import { INDICATOR_FAMILIES, TIMEFRAMES } from '../types'
 
@@ -25,6 +26,7 @@ export default function SetupPage() {
   const [activeCategory, setActiveCategory] = useState<string>('crypto')
   const [loading, setLoading] = useState(false)
   const [batchLoading, setBatchLoading] = useState(false)
+  const [groupLoading, setGroupLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -43,6 +45,25 @@ export default function SetupPage() {
     }
     return acc + (counts[key] || 5)
   }, 0)
+
+  const handleGroupRun = async () => {
+    if (selectedIndicators.length === 0) return
+    setGroupLoading(true)
+    setError(null)
+    try {
+      const { data } = await client.post('/category-batch', {
+        symbol: '',
+        symbol_display: CATEGORY_LABELS[activeCategory],
+        indicators: selectedIndicators,
+        bar_limit: barLimit,
+      }, { params: { category: activeCategory } })
+      navigate(`/category-progress/${data.batch_id}`)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setGroupLoading(false)
+    }
+  }
 
   const handleBatchRun = async () => {
     if (!symbol || selectedIndicators.length === 0) return
@@ -103,8 +124,8 @@ export default function SetupPage() {
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
         {/* Symbol Section */}
         <Section title="銘柄">
-          {/* Category tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+          {/* Category tabs + group analysis button */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
             {Object.keys(CATEGORY_LABELS).map((cat) => (
               <button
                 key={cat}
@@ -126,6 +147,26 @@ export default function SetupPage() {
               </button>
             ))}
           </div>
+
+          {/* Group batch button */}
+          <button
+            onClick={handleGroupRun}
+            disabled={groupLoading || selectedIndicators.length === 0}
+            style={{
+              width: '100%', padding: '9px',
+              borderRadius: '8px', border: '1px dashed #4c1d95',
+              background: groupLoading ? '#1e293b' : '#1e0a3a',
+              color: groupLoading ? '#475569' : '#a78bfa',
+              fontSize: '12px', fontWeight: '600',
+              cursor: groupLoading || selectedIndicators.length === 0 ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s',
+              marginBottom: '12px',
+            }}
+          >
+            {groupLoading
+              ? '起動中...'
+              : `🔮 ${CATEGORY_LABELS[activeCategory]}の全銘柄を一括分析`}
+          </button>
 
           {/* Symbol grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>

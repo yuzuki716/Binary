@@ -10,8 +10,11 @@ from sqlalchemy import select
 
 from app.core.database import get_db
 from app.models.orm import Simulation, StrategyResult
-from app.models.schemas import BatchCreate, BatchSimStatus, BatchResultsResponse, SimulationStatus
+from app.models.schemas import (
+    BatchCreate, BatchSimStatus, BatchResultsResponse, SimulationStatus
+)
 from app.workers.simulation_worker import run_simulation
+from app.models.schemas import SimulationCreate
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,36 +22,122 @@ router = APIRouter()
 BATCH_TIMEFRAMES = ["1m", "5m", "15m", "1h"]
 BATCH_DURATIONS = [1, 5]
 
+# All symbols per category (mirrors data_fetcher.SYMBOL_MAP)
+CATEGORY_SYMBOLS: dict[str, list[dict]] = {
+    "crypto": [
+        {"key": "BTCUSDT", "display": "BTC/USDT"},
+        {"key": "ETHUSDT", "display": "ETH/USDT"},
+        {"key": "BNBUSDT", "display": "BNB/USDT"},
+        {"key": "SOLUSDT", "display": "SOL/USDT"},
+        {"key": "XRPUSDT", "display": "XRP/USDT"},
+    ],
+    "forex": [
+        {"key": "EURUSD", "display": "EUR/USD"},
+        {"key": "USDJPY", "display": "USD/JPY"},
+        {"key": "GBPUSD", "display": "GBP/USD"},
+        {"key": "AUDUSD", "display": "AUD/USD"},
+        {"key": "USDCHF", "display": "USD/CHF"},
+        {"key": "USDCAD", "display": "USD/CAD"},
+        {"key": "NZDUSD", "display": "NZD/USD"},
+        {"key": "EURJPY", "display": "EUR/JPY"},
+        {"key": "GBPJPY", "display": "GBP/JPY"},
+    ],
+    "indices": [
+        {"key": "SPX500", "display": "S&P 500"},
+        {"key": "NDX100", "display": "NASDAQ 100"},
+        {"key": "DJI",    "display": "Dow Jones"},
+        {"key": "N225",   "display": "日経 225"},
+        {"key": "DAX",    "display": "DAX 40"},
+    ],
+}
+
+CATEGORY_LABELS = {"crypto": "暗号資産", "forex": "為替", "indices": "指数"}
+
+
+async def _create_and_launch_sims(
+    db: AsyncSession,
+    batch_id: str,
+    symbols: list[dict],
+    timeframes: list[str],
+    durations: list[int],
+    indicators: list[str],
+    bar_limit: int,
+) -> list[str]:
+    sim_ids: List[str] = []
+    for sym in symbols:
+        for tf in timeframes:
+            for dur in durations:
+                sim_id = str(uuid.uuid4())
+                sim = Simulation(
+                    id=sim_id,
+                    symbol=sym["key"],
+                    symbol_display=sym["display"],
+                    timeframe=tf,
+                    trade_duration=dur,
+                    indicators=json.dumps(indicators),
+                    status="PENDING",
+                    progress_pct=0,
+                    batch_id=batch_id,
+                )
+                db.add(sim)
+                sim_ids.append((sim_id, sym, tf, dur))
+    await db.commit()
+
+    for sim_id, sym, tf, dur in sim_ids:
+        config = SimulationCreate(
+            symbol=sym["key"],
+            symbol_display=sym["display"],
+            timeframe=tf,
+            trade_duration=dur,
+            indicators=indicators,
+            bar_limit=bar_limit,
+        )
+        asyncio.create_task(run_simulation(sim_id, config))
+
+    return [s for s, *_ in sim_ids]
+
+
+# ── Single-symbol batch (4 TF × 2 duration) ────────────────────────────────
 
 @router.post("/batch", status_code=202)
 async def create_batch(body: BatchCreate, db: AsyncSession = Depends(get_db)):
     batch_id = str(uuid.uuid4())
-    sim_ids: List[str] = []
+    sym = {"key": body.symbol, "display": body.symbol_display}
+    await _create_and_launch_sims(
+        db, batch_id, [sym], BATCH_TIMEFRAMES, BATCH_DURATIONS,
+        body.indicators, body.bar_limit,
+    )
+    return {"batch_id": batch_id, "total": len(BATCH_TIMEFRAMES) * len(BATCH_DURATIONS)}
 
-    for tf in BATCH_TIMEFRAMES:
-        for dur in BATCH_DURATIONS:
-            sim_id = str(uuid.uuid4())
-            sim = Simulation(
-                id=sim_id,
-                symbol=body.symbol,
-                symbol_display=body.symbol_display,
-                timeframe=tf,
-                trade_duration=dur,
-                indicators=json.dumps(body.indicators),
-                status="PENDING",
-                progress_pct=0,
-                batch_id=batch_id,
-            )
-            db.add(sim)
-            sim_ids.append(sim_id)
 
-    await db.commit()
+# ── Category batch (all symbols in group × 4 TF × 2 duration) ──────────────
 
-    for sim_id in sim_ids:
-        asyncio.create_task(run_simulation(sim_id))
+@router.post("/category-batch", status_code=202)
+async def create_category_batch(
+    category: str,
+    body: BatchCreate,
+    db: AsyncSession = Depends(get_db),
+):
+    symbols = CATEGORY_SYMBOLS.get(category)
+    if not symbols:
+        raise HTTPException(400, f"Unknown category: {category}. Use crypto/forex/indices.")
 
-    return {"batch_id": batch_id, "sim_ids": sim_ids, "total": len(sim_ids)}
+    batch_id = str(uuid.uuid4())
+    await _create_and_launch_sims(
+        db, batch_id, symbols, BATCH_TIMEFRAMES, BATCH_DURATIONS,
+        body.indicators, body.bar_limit,
+    )
+    total = len(symbols) * len(BATCH_TIMEFRAMES) * len(BATCH_DURATIONS)
+    return {
+        "batch_id": batch_id,
+        "category": category,
+        "category_label": CATEGORY_LABELS.get(category, category),
+        "symbol_count": len(symbols),
+        "total": total,
+    }
 
+
+# ── Status ──────────────────────────────────────────────────────────────────
 
 @router.get("/batch/{batch_id}", response_model=BatchSimStatus)
 async def get_batch(batch_id: str, db: AsyncSession = Depends(get_db)):
@@ -61,7 +150,6 @@ async def get_batch(batch_id: str, db: AsyncSession = Depends(get_db)):
 
     completed = sum(1 for s in sims if s.status == "COMPLETED")
     failed = sum(1 for s in sims if s.status == "FAILED")
-
     sim_statuses = [SimulationStatus.model_validate(s.__dict__) for s in sims]
 
     return BatchSimStatus(
@@ -73,8 +161,12 @@ async def get_batch(batch_id: str, db: AsyncSession = Depends(get_db)):
     )
 
 
+# ── TF-grouped results (single-symbol batch) ────────────────────────────────
+
 @router.get("/batch/{batch_id}/results", response_model=BatchResultsResponse)
-async def get_batch_results(batch_id: str, min_trades: int = 10, db: AsyncSession = Depends(get_db)):
+async def get_batch_results(
+    batch_id: str, min_trades: int = 10, db: AsyncSession = Depends(get_db)
+):
     sim_result = await db.execute(
         select(Simulation).where(Simulation.batch_id == batch_id)
     )
@@ -85,7 +177,6 @@ async def get_batch_results(batch_id: str, min_trades: int = 10, db: AsyncSessio
     symbol = sims[0].symbol
     symbol_display = sims[0].symbol_display
 
-    # Build results_by_tf: {"1m": {"1": [...top10...], "5": [...top10...]}, ...}
     results_by_tf: dict = {}
     for tf in BATCH_TIMEFRAMES:
         results_by_tf[tf] = {}
@@ -94,7 +185,6 @@ async def get_batch_results(batch_id: str, min_trades: int = 10, db: AsyncSessio
             if sim is None or sim.status != "COMPLETED":
                 results_by_tf[tf][str(dur)] = []
                 continue
-
             rows = await db.execute(
                 select(StrategyResult)
                 .where(StrategyResult.sim_id == sim.id)
@@ -102,24 +192,16 @@ async def get_batch_results(batch_id: str, min_trades: int = 10, db: AsyncSessio
                 .order_by(StrategyResult.win_rate.desc())
                 .limit(10)
             )
-            strategies = rows.scalars().all()
             results_by_tf[tf][str(dur)] = [
                 {
-                    "id": r.id,
-                    "sim_id": r.sim_id,
-                    "timeframe": tf,
-                    "trade_duration": dur,
-                    "rank": r.rank,
-                    "strategy_name": r.strategy_name,
-                    "indicator_family": r.indicator_family,
-                    "parameters": r.parameters,
-                    "total_trades": r.total_trades,
-                    "wins": r.wins,
-                    "losses": r.losses,
-                    "win_rate": r.win_rate,
-                    "profit_factor": r.profit_factor,
+                    "id": r.id, "sim_id": r.sim_id,
+                    "timeframe": tf, "trade_duration": dur,
+                    "rank": r.rank, "strategy_name": r.strategy_name,
+                    "indicator_family": r.indicator_family, "parameters": r.parameters,
+                    "total_trades": r.total_trades, "wins": r.wins, "losses": r.losses,
+                    "win_rate": r.win_rate, "profit_factor": r.profit_factor,
                 }
-                for r in strategies
+                for r in rows.scalars().all()
             ]
 
     return BatchResultsResponse(
@@ -128,3 +210,83 @@ async def get_batch_results(batch_id: str, min_trades: int = 10, db: AsyncSessio
         symbol_display=symbol_display,
         results_by_tf=results_by_tf,
     )
+
+
+# ── Per-symbol summary (category batch) ─────────────────────────────────────
+
+@router.get("/batch/{batch_id}/symbol-summary")
+async def get_symbol_summary(
+    batch_id: str, min_trades: int = 10, db: AsyncSession = Depends(get_db)
+):
+    sim_result = await db.execute(
+        select(Simulation).where(Simulation.batch_id == batch_id)
+    )
+    sims = sim_result.scalars().all()
+    if not sims:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    total = len(sims)
+    completed = sum(1 for s in sims if s.status == "COMPLETED")
+    failed = sum(1 for s in sims if s.status == "FAILED")
+
+    # Group simulations by symbol
+    symbols_seen: list[str] = []
+    sym_map: dict = {}
+    for s in sims:
+        if s.symbol not in sym_map:
+            symbols_seen.append(s.symbol)
+            sym_map[s.symbol] = {"symbol": s.symbol, "symbol_display": s.symbol_display, "sims": []}
+        sym_map[s.symbol]["sims"].append(s)
+
+    symbol_results = []
+    for sym_key in symbols_seen:
+        entry = sym_map[sym_key]
+        sym_sims = entry["sims"]
+
+        # Status grid: {tf: {dur: status/pct}}
+        grid: dict = {}
+        for s in sym_sims:
+            grid.setdefault(s.timeframe, {})[str(s.trade_duration)] = {
+                "sim_id": s.id, "status": s.status, "progress_pct": s.progress_pct
+            }
+
+        # Find the single best strategy across all completed sims for this symbol
+        top_strategy = None
+        for s in sym_sims:
+            if s.status != "COMPLETED":
+                continue
+            row = (await db.execute(
+                select(StrategyResult)
+                .where(StrategyResult.sim_id == s.id)
+                .where(StrategyResult.total_trades >= min_trades)
+                .order_by(StrategyResult.win_rate.desc())
+                .limit(1)
+            )).scalar_one_or_none()
+            if row and (top_strategy is None or row.win_rate > top_strategy["win_rate"]):
+                top_strategy = {
+                    "id": row.id,
+                    "sim_id": row.sim_id,
+                    "strategy_name": row.strategy_name,
+                    "timeframe": s.timeframe,
+                    "trade_duration": s.trade_duration,
+                    "win_rate": row.win_rate,
+                    "total_trades": row.total_trades,
+                    "wins": row.wins,
+                    "losses": row.losses,
+                    "parameters": row.parameters,
+                }
+
+        symbol_results.append({
+            "symbol": sym_key,
+            "symbol_display": entry["symbol_display"],
+            "grid": grid,
+            "top_strategy": top_strategy,
+        })
+
+    return {
+        "batch_id": batch_id,
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "symbols": symbol_results,
+    }
