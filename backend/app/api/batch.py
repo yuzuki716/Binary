@@ -312,10 +312,13 @@ async def get_symbol_summary(
             "top_strategy": top_strategy,
         })
 
+    refinement_batch_id = next((s.refinement_batch_id for s in sims if s.refinement_batch_id), None)
+
     return {
         "batch_id": batch_id,
         "total": total,
         "completed": completed,
         "failed": failed,
+        "refinement_batch_id": refinement_batch_id,
         "symbols": symbol_results,
     }
