@@ -26,12 +26,12 @@ SYMBOL_MAP = {
     "NZDUSD": {"ticker": "NZDUSD=X", "source": "yfinance", "display": "NZD/USD", "category": "forex"},
     "EURJPY": {"ticker": "EURJPY=X", "source": "yfinance", "display": "EUR/JPY", "category": "forex"},
     "GBPJPY": {"ticker": "GBPJPY=X", "source": "yfinance", "display": "GBP/JPY", "category": "forex"},
-    # Crypto (yfinance to avoid geo-restrictions)
-    "BTCUSDT": {"ticker": "BTC-USD", "source": "yfinance", "display": "BTC/USDT", "category": "crypto"},
-    "ETHUSDT": {"ticker": "ETH-USD", "source": "yfinance", "display": "ETH/USDT", "category": "crypto"},
-    "BNBUSDT": {"ticker": "BNB-USD", "source": "yfinance", "display": "BNB/USDT", "category": "crypto"},
-    "SOLUSDT": {"ticker": "SOL-USD", "source": "yfinance", "display": "SOL/USDT", "category": "crypto"},
-    "XRPUSDT": {"ticker": "XRP-USD", "source": "yfinance", "display": "XRP/USDT", "category": "crypto"},
+    # Crypto (Binance.US - works from US-based servers like Render)
+    "BTCUSDT": {"ticker": "BTC/USDT", "source": "ccxt", "display": "BTC/USDT", "category": "crypto"},
+    "ETHUSDT": {"ticker": "ETH/USDT", "source": "ccxt", "display": "ETH/USDT", "category": "crypto"},
+    "BNBUSDT": {"ticker": "BNB/USDT", "source": "ccxt", "display": "BNB/USDT", "category": "crypto"},
+    "SOLUSDT": {"ticker": "SOL/USDT", "source": "ccxt", "display": "SOL/USDT", "category": "crypto"},
+    "XRPUSDT": {"ticker": "XRP/USDT", "source": "ccxt", "display": "XRP/USDT", "category": "crypto"},
     # Indices
     "SPX500":  {"ticker": "^GSPC",    "source": "yfinance", "display": "S&P 500",    "category": "indices"},
     "NDX100":  {"ticker": "^NDX",     "source": "yfinance", "display": "NASDAQ 100", "category": "indices"},
@@ -117,7 +117,7 @@ def _fetch_yfinance(ticker: str, timeframe: str, limit: int) -> pd.DataFrame:
 def _fetch_ccxt(ticker: str, timeframe: str, limit: int) -> pd.DataFrame:
     import ccxt
 
-    exchange = ccxt.binance({"enableRateLimit": True})
+    exchange = ccxt.binanceus({"enableRateLimit": True})
     tf = CCXT_TIMEFRAME_MAP.get(timeframe, "1h")
 
     ohlcv = exchange.fetch_ohlcv(ticker, timeframe=tf, limit=min(limit, 1000))
