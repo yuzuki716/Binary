@@ -18,8 +18,9 @@ class Simulation(Base):
     total_strategies = Column(Integer, nullable=True)
     progress_pct = Column(Integer, nullable=False, default=0)
     batch_id = Column(String, nullable=True, index=True)
-    refinement_batch_id = Column(String, nullable=True)  # set when refinement triggered
-    refinement_for = Column(String, nullable=True)        # original batch_id if refinement sim
+    refinement_batch_id = Column(String, nullable=True)
+    refinement_for = Column(String, nullable=True)
+    payout_rate = Column(Float, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
 

@@ -31,7 +31,6 @@ SYMBOL_MAP = {
     "DOGEUSDT": {"ticker": "DOGE/USDT", "source": "ccxt", "display": "Dogecoin", "category": "crypto"},
     "SOLUSDT":  {"ticker": "SOL/USDT",  "source": "ccxt", "display": "Solana",   "category": "crypto"},
     "BNBUSDT":  {"ticker": "BNB/USDT",  "source": "ccxt", "display": "BNB",      "category": "crypto"},
-    "ETHUSDT":  {"ticker": "ETH/USDT",  "source": "ccxt", "display": "Ethereum", "category": "crypto"},
     # Indices
     "SPX500":  {"ticker": "^GSPC",    "source": "yfinance", "display": "S&P 500",    "category": "indices"},
     "NDX100":  {"ticker": "^NDX",     "source": "yfinance", "display": "NASDAQ 100", "category": "indices"},

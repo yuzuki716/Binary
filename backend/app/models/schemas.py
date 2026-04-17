@@ -13,6 +13,7 @@ class SimulationCreate(BaseModel):
         description="Indicator families to test"
     )
     bar_limit: int = Field(default=2000, ge=100, le=100000)
+    payout_rate: Optional[float] = Field(default=None, ge=0.01, le=1.0, description="Binary options payout rate e.g. 0.78")
     target_strategy_names: Optional[List[str]] = Field(default=None, description="If set, only test these strategies")
     refinement_for: Optional[str] = Field(default=None, description="Original batch_id if this is a refinement")
 
@@ -102,6 +103,7 @@ class BatchCreate(BaseModel):
         default=["SMA_CROSS", "EMA_CROSS", "RSI", "MACD", "BB", "STOCH", "RSI_MA", "MACD_BB"]
     )
     bar_limit: int = Field(default=2000, ge=100, le=5000)
+    payout_rates: Optional[dict] = Field(default=None, description="Per-symbol payout rates e.g. {'BTCUSDT': 0.78}")
 
 
 class BatchSimStatus(BaseModel):

@@ -40,7 +40,6 @@ CATEGORY_SYMBOLS: dict[str, list[dict]] = {
         {"key": "DOGEUSDT", "display": "Dogecoin"},
         {"key": "SOLUSDT",  "display": "Solana"},
         {"key": "BNBUSDT",  "display": "BNB"},
-        {"key": "ETHUSDT",  "display": "Ethereum"},
     ],
     "forex": [
         {"key": "EURUSD", "display": "EUR/USD"},
@@ -73,9 +72,11 @@ async def _create_and_launch_sims(
     durations: list[int],
     indicators: list[str],
     bar_limit: int,
+    payout_rates: dict = None,
 ) -> list[str]:
     sim_ids: List[str] = []
     for sym in symbols:
+        payout_rate = (payout_rates or {}).get(sym["key"])
         for tf in timeframes:
             for dur in durations:
                 sim_id = str(uuid.uuid4())
@@ -89,12 +90,13 @@ async def _create_and_launch_sims(
                     status="PENDING",
                     progress_pct=0,
                     batch_id=batch_id,
+                    payout_rate=payout_rate,
                 )
                 db.add(sim)
-                sim_ids.append((sim_id, sym, tf, dur))
+                sim_ids.append((sim_id, sym, tf, dur, payout_rate))
     await db.commit()
 
-    for sim_id, sym, tf, dur in sim_ids:
+    for sim_id, sym, tf, dur, payout_rate in sim_ids:
         config = SimulationCreate(
             symbol=sym["key"],
             symbol_display=sym["display"],
@@ -102,6 +104,7 @@ async def _create_and_launch_sims(
             trade_duration=dur,
             indicators=indicators,
             bar_limit=bar_limit,
+            payout_rate=payout_rate,
         )
         asyncio.create_task(run_simulation(sim_id, config))
 
@@ -137,6 +140,7 @@ async def create_category_batch(
     await _create_and_launch_sims(
         db, batch_id, symbols, BATCH_TIMEFRAMES, BATCH_DURATIONS,
         body.indicators, body.bar_limit,
+        payout_rates=body.payout_rates,
     )
     total = len(symbols) * len(BATCH_TIMEFRAMES) * len(BATCH_DURATIONS)
     return {

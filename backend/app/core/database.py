@@ -26,6 +26,7 @@ async def init_db():
             "ALTER TABLE strategy_results ADD COLUMN expected_value REAL",
             "ALTER TABLE strategy_results ADD COLUMN timeframe TEXT",
             "ALTER TABLE strategy_results ADD COLUMN total_bars INTEGER",
+            "ALTER TABLE simulations ADD COLUMN payout_rate REAL",
         ]:
             try:
                 await conn.execute(text(stmt))

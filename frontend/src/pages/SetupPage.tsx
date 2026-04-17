@@ -28,6 +28,8 @@ export default function SetupPage() {
   const [batchLoading, setBatchLoading] = useState(false)
   const [groupLoading, setGroupLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPayoutForm, setShowPayoutForm] = useState(false)
+  const [payoutRates, setPayoutRates] = useState<Record<string, number>>({})
 
   useEffect(() => {
     fetchSymbols().then((data) => {
@@ -46,17 +48,33 @@ export default function SetupPage() {
     return acc + (counts[key] || 5)
   }, 0)
 
+  const handleGroupButtonClick = () => {
+    if (selectedIndicators.length === 0) return
+    if (!showPayoutForm) {
+      // Initialize payout rates with defaults
+      const syms = symbols[activeCategory] || []
+      const defaults: Record<string, number> = {}
+      syms.forEach(s => { defaults[s.key] = payoutRates[s.key] ?? 80 })
+      setPayoutRates(defaults)
+      setShowPayoutForm(true)
+    }
+  }
+
   const handleGroupRun = async () => {
     if (selectedIndicators.length === 0) return
     setGroupLoading(true)
     setError(null)
     try {
+      const rates: Record<string, number> = {}
+      Object.entries(payoutRates).forEach(([k, v]) => { rates[k] = v / 100 })
       const { data } = await client.post('/category-batch', {
         symbol: '',
         symbol_display: CATEGORY_LABELS[activeCategory],
         indicators: selectedIndicators,
         bar_limit: barLimit,
+        payout_rates: rates,
       }, { params: { category: activeCategory } })
+      setShowPayoutForm(false)
       navigate(`/category-progress/${data.batch_id}`)
     } catch (e: any) {
       setError(e.message)
@@ -129,7 +147,7 @@ export default function SetupPage() {
             {Object.keys(CATEGORY_LABELS).map((cat) => (
               <button
                 key={cat}
-                onClick={() => setActiveCategory(cat)}
+                onClick={() => { setActiveCategory(cat); setShowPayoutForm(false) }}
                 style={{
                   flex: 1,
                   padding: '6px',
@@ -149,24 +167,76 @@ export default function SetupPage() {
           </div>
 
           {/* Group batch button */}
-          <button
-            onClick={handleGroupRun}
-            disabled={groupLoading || selectedIndicators.length === 0}
-            style={{
-              width: '100%', padding: '9px',
-              borderRadius: '8px', border: '1px dashed #4c1d95',
-              background: groupLoading ? '#1e293b' : '#1e0a3a',
-              color: groupLoading ? '#475569' : '#a78bfa',
-              fontSize: '12px', fontWeight: '600',
-              cursor: groupLoading || selectedIndicators.length === 0 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-              marginBottom: '12px',
-            }}
-          >
-            {groupLoading
-              ? '起動中...'
-              : `🔮 ${CATEGORY_LABELS[activeCategory]}の全銘柄を一括分析`}
-          </button>
+          {!showPayoutForm ? (
+            <button
+              onClick={handleGroupButtonClick}
+              disabled={selectedIndicators.length === 0}
+              style={{
+                width: '100%', padding: '9px',
+                borderRadius: '8px', border: '1px dashed #4c1d95',
+                background: '#1e0a3a',
+                color: selectedIndicators.length === 0 ? '#475569' : '#a78bfa',
+                fontSize: '12px', fontWeight: '600',
+                cursor: selectedIndicators.length === 0 ? 'not-allowed' : 'pointer',
+                transition: 'all 0.15s', marginBottom: '12px',
+              }}
+            >
+              {`🔮 ${CATEGORY_LABELS[activeCategory]}の全銘柄を一括分析`}
+            </button>
+          ) : (
+            <div style={{
+              border: '1px solid #4c1d95', borderRadius: '10px',
+              background: '#0f0a1e', padding: '14px', marginBottom: '12px',
+            }}>
+              <div style={{ fontSize: '12px', fontWeight: '700', color: '#a78bfa', marginBottom: '12px' }}>
+                ペイアウト率を入力（%）
+              </div>
+              {(symbols[activeCategory] || []).map(s => (
+                <div key={s.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '600' }}>{s.display}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      min={1} max={99}
+                      value={payoutRates[s.key] ?? 80}
+                      onChange={e => setPayoutRates(prev => ({ ...prev, [s.key]: Number(e.target.value) }))}
+                      style={{
+                        width: '64px', padding: '5px 8px', textAlign: 'right',
+                        background: '#1e293b', border: '1px solid #334155',
+                        borderRadius: '6px', color: '#f1f5f9', fontSize: '14px',
+                        fontWeight: '700',
+                      }}
+                    />
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>%</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '14px' }}>
+                <button
+                  onClick={() => setShowPayoutForm(false)}
+                  style={{
+                    flex: 1, padding: '8px', borderRadius: '8px',
+                    border: '1px solid #334155', background: 'none',
+                    color: '#64748b', fontSize: '12px', cursor: 'pointer',
+                  }}
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleGroupRun}
+                  disabled={groupLoading}
+                  style={{
+                    flex: 2, padding: '8px', borderRadius: '8px', border: 'none',
+                    background: groupLoading ? '#1e293b' : '#7c3aed',
+                    color: groupLoading ? '#475569' : '#fff',
+                    fontSize: '12px', fontWeight: '700', cursor: groupLoading ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {groupLoading ? '起動中...' : '分析開始'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Symbol grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>

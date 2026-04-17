@@ -110,8 +110,14 @@ async def run_simulation(sim_id: str, config: SimulationCreate):
                         _executor, run_backtest, df, sig, config.trade_duration, False
                     )
 
-                    pf = bt_result.profit_factor or 0.0
-                    ev = round(pf * bt_result.total_trades, 4)
+                    payout_rate = config.payout_rate
+                    if payout_rate and payout_rate > 0 and bt_result.total_trades > 0:
+                        # Real binary options EV: win_rate*payout - loss_rate*1
+                        ev_per_trade = bt_result.win_rate * payout_rate - (1 - bt_result.win_rate)
+                        ev = round(ev_per_trade * bt_result.total_trades, 4)
+                    else:
+                        pf = bt_result.profit_factor or 0.0
+                        ev = round(pf * bt_result.total_trades, 4)
 
                     results_batch.append(StrategyResult(
                         sim_id=sim_id,
@@ -255,6 +261,7 @@ async def _run_batch_refinement(original_batch_id: str):
                 progress_pct=0,
                 batch_id=refinement_batch_id,
                 refinement_for=original_batch_id,
+                payout_rate=sim.payout_rate,
             )
             db.add(ref_sim)
             config = SimulationCreate(
@@ -264,6 +271,7 @@ async def _run_batch_refinement(original_batch_id: str):
                 trade_duration=sim.trade_duration,
                 indicators=[result.indicator_family],
                 bar_limit=get_max_bars(sim.symbol, sim.timeframe),
+                payout_rate=sim.payout_rate,
                 target_strategy_names=[result.strategy_name],
                 refinement_for=original_batch_id,
             )
