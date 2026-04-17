@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import client from '../api/client'
 
@@ -38,7 +38,15 @@ interface Summary {
   total: number
   completed: number
   failed: number
+  refinement_batch_id: string | null
   symbols: SymbolEntry[]
+}
+
+interface BatchStatus {
+  batch_id: string
+  total: number
+  completed: number
+  failed: number
 }
 
 export default function CategoryResultsPage() {
@@ -48,19 +56,56 @@ export default function CategoryResultsPage() {
   const [minTrades, setMinTrades] = useState(10)
   const [loading, setLoading] = useState(true)
 
+  const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
+  const [refinementDone, setRefinementDone] = useState(false)
+  const [refinedSymbols, setRefinedSymbols] = useState<SymbolEntry[]>([])
+  const refinementRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
   useEffect(() => {
     if (!batchId) return
     setLoading(true)
     client.get<Summary>(`/batch/${batchId}/symbol-summary`, { params: { min_trades: minTrades } })
-      .then(({ data }) => setSummary(data))
+      .then(({ data }) => {
+        setSummary(data)
+        if (data.refinement_batch_id && !refinementBatchId) {
+          setRefinementBatchId(data.refinement_batch_id)
+        }
+      })
       .finally(() => setLoading(false))
   }, [batchId, minTrades])
+
+  // Once we have refinement batch id, poll until done and load results
+  useEffect(() => {
+    if (!refinementBatchId) return
+    refinementRef.current = setInterval(async () => {
+      try {
+        const { data: batch } = await client.get<BatchStatus>(`/batch/${refinementBatchId}`)
+        const allDone = batch.completed + batch.failed === batch.total
+        if (allDone) {
+          clearInterval(refinementRef.current!)
+          setRefinementDone(true)
+          const { data: rd } = await client.get<Summary>(
+            `/batch/${refinementBatchId}/symbol-summary`,
+            { params: { min_trades: 5 } }
+          )
+          setRefinedSymbols(rd.symbols)
+        }
+      } catch { /* ignore */ }
+    }, 3000)
+    return () => clearInterval(refinementRef.current!)
+  }, [refinementBatchId])
 
   // Sort symbols by expected_value descending (nulls last)
   const sorted = summary?.symbols.slice().sort((a, b) => {
     const ev = (s: SymbolEntry) => s.top_strategy?.expected_value ?? -1
     return ev(b) - ev(a)
   }) ?? []
+
+  // Sort refined symbols by expected_value descending (nulls last)
+  const refinedSorted = refinedSymbols.slice().sort((a, b) => {
+    const ev = (s: SymbolEntry) => s.top_strategy?.expected_value ?? -1
+    return ev(b) - ev(a)
+  }).filter(s => s.top_strategy != null)
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', paddingBottom: '80px' }}>
@@ -99,6 +144,89 @@ export default function CategoryResultsPage() {
 
         {loading && (
           <div style={{ textAlign: 'center', padding: '40px', color: '#475569' }}>読み込み中...</div>
+        )}
+
+        {/* Refinement status */}
+        {refinementBatchId && !refinementDone && (
+          <div style={{
+            padding: '12px 14px', borderRadius: '10px', marginBottom: '16px',
+            background: '#1e1040', border: '1px solid #4c1d95',
+            display: 'flex', alignItems: 'center', gap: '10px',
+          }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#a78bfa', boxShadow: '0 0 6px #a78bfa', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#c4b5fd' }}>
+              上位5件を10000本で精密分析中...
+            </span>
+          </div>
+        )}
+
+        {/* Refinement results */}
+        {refinementDone && refinedSorted.length > 0 && (
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{
+              padding: '8px 12px', borderRadius: '8px 8px 0 0',
+              background: '#1e1040', border: '1px solid #4c1d95', borderBottom: 'none',
+              fontSize: '12px', fontWeight: '700', color: '#a78bfa',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}>
+              ✨ 精密分析結果（10000本）— 上位5件
+            </div>
+            <div style={{ border: '1px solid #4c1d95', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+              {refinedSorted.map((sym, idx) => {
+                const top = sym.top_strategy!
+                return (
+                  <div key={sym.symbol} style={{
+                    padding: '12px 14px',
+                    borderBottom: idx < refinedSorted.length - 1 ? '1px solid #2d1a6e' : 'none',
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    background: '#0f0a1e',
+                  }}>
+                    <div style={{
+                      width: '24px', height: '24px', borderRadius: '50%',
+                      background: idx === 0 ? '#f59e0b' : idx === 1 ? '#94a3b8' : idx === 2 ? '#b45309' : '#1e293b',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '11px', fontWeight: '800', color: idx < 3 ? '#000' : '#475569',
+                      flexShrink: 0,
+                    }}>
+                      {idx + 1}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: '700', color: '#e2e8f0' }}>
+                        {sym.symbol_display}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#7c3aed', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {TF_LABEL[top.timeframe]} / {top.trade_duration}分取引 / {top.strategy_name}
+                      </div>
+                      <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
+                        {top.expected_value != null && (
+                          <span style={{ background: '#1e1040', color: '#a78bfa', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #4c1d95' }}>
+                            EV {top.expected_value.toFixed(1)}
+                          </span>
+                        )}
+                        {top.hourly_ev != null && (
+                          <span style={{ background: '#0f2a1a', color: '#4ade80', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #166534' }}>
+                            毎時 {top.hourly_ev.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '18px', fontWeight: '800', color: winColor(top.win_rate) }}>
+                        {Math.round(top.win_rate * 100)}%
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#475569' }}>{top.total_trades}回</div>
+                      <button
+                        onClick={() => navigate(`/results/${top.sim_id}/chart/${top.id}`)}
+                        style={{ background: 'none', border: 'none', color: '#3b82f6', fontSize: '11px', cursor: 'pointer', padding: '2px 0', marginTop: '2px' }}
+                      >
+                        詳細 →
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
 
         {/* Leaderboard */}
