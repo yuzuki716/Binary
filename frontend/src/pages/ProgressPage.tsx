@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { getSimulation } from '../api'
+import { getWsBase } from '../api/client'
 
 interface LogEntry {
   message: string
@@ -23,7 +24,7 @@ export default function ProgressPage() {
   useEffect(() => {
     if (!simId) return
 
-    const ws = new WebSocket(`ws://${window.location.host}/ws/progress/${simId}`)
+    const ws = new WebSocket(`${getWsBase()}/ws/progress/${simId}`)
     wsRef.current = ws
 
     ws.onmessage = (e) => {

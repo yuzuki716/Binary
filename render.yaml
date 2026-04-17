@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: binary-options-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: CORS_ORIGINS
+        value: '["*"]'
