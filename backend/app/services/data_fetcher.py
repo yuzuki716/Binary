@@ -88,11 +88,15 @@ def _fetch_yfinance(ticker: str, timeframe: str, limit: int) -> pd.DataFrame:
     interval = tf_config["interval"]
     period = tf_config["period"]
 
-    ticker_obj = yf.Ticker(ticker)
-    df = ticker_obj.history(period=period, interval=interval, auto_adjust=True)
+    df = yf.download(ticker, period=period, interval=interval,
+                     auto_adjust=True, progress=False, threads=False)
 
     if df.empty:
         raise ValueError(f"yfinance returned no data for {ticker}")
+
+    # yfinance >= 0.2.x returns MultiIndex columns for single ticker
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
 
     # Resample 1h to 4h if needed
     if timeframe == "4h" and interval == "1h":
