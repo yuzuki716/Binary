@@ -27,11 +27,11 @@ SYMBOL_MAP = {
     "EURJPY": {"ticker": "EURJPY=X", "source": "yfinance", "display": "EUR/JPY", "category": "forex"},
     "GBPJPY": {"ticker": "GBPJPY=X", "source": "yfinance", "display": "GBP/JPY", "category": "forex"},
     # Crypto (Binance.US - works from US-based servers like Render)
-    "BTCUSDT": {"ticker": "BTC/USDT", "source": "ccxt", "display": "BTC/USDT", "category": "crypto"},
-    "ETHUSDT": {"ticker": "ETH/USDT", "source": "ccxt", "display": "ETH/USDT", "category": "crypto"},
-    "BNBUSDT": {"ticker": "BNB/USDT", "source": "ccxt", "display": "BNB/USDT", "category": "crypto"},
-    "SOLUSDT": {"ticker": "SOL/USDT", "source": "ccxt", "display": "SOL/USDT", "category": "crypto"},
-    "XRPUSDT": {"ticker": "XRP/USDT", "source": "ccxt", "display": "XRP/USDT", "category": "crypto"},
+    "BTCUSDT":  {"ticker": "BTC/USDT",  "source": "ccxt", "display": "Bitcoin",  "category": "crypto"},
+    "DOGEUSDT": {"ticker": "DOGE/USDT", "source": "ccxt", "display": "Dogecoin", "category": "crypto"},
+    "SOLUSDT":  {"ticker": "SOL/USDT",  "source": "ccxt", "display": "Solana",   "category": "crypto"},
+    "BNBUSDT":  {"ticker": "BNB/USDT",  "source": "ccxt", "display": "BNB",      "category": "crypto"},
+    "ETHUSDT":  {"ticker": "ETH/USDT",  "source": "ccxt", "display": "Ethereum", "category": "crypto"},
     # Indices
     "SPX500":  {"ticker": "^GSPC",    "source": "yfinance", "display": "S&P 500",    "category": "indices"},
     "NDX100":  {"ticker": "^NDX",     "source": "yfinance", "display": "NASDAQ 100", "category": "indices"},

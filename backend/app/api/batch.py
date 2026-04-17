@@ -36,11 +36,11 @@ BATCH_DURATIONS = [1, 5]
 # All symbols per category (mirrors data_fetcher.SYMBOL_MAP)
 CATEGORY_SYMBOLS: dict[str, list[dict]] = {
     "crypto": [
-        {"key": "BTCUSDT", "display": "BTC/USDT"},
-        {"key": "ETHUSDT", "display": "ETH/USDT"},
-        {"key": "BNBUSDT", "display": "BNB/USDT"},
-        {"key": "SOLUSDT", "display": "SOL/USDT"},
-        {"key": "XRPUSDT", "display": "XRP/USDT"},
+        {"key": "BTCUSDT",  "display": "Bitcoin"},
+        {"key": "DOGEUSDT", "display": "Dogecoin"},
+        {"key": "SOLUSDT",  "display": "Solana"},
+        {"key": "BNBUSDT",  "display": "BNB"},
+        {"key": "ETHUSDT",  "display": "Ethereum"},
     ],
     "forex": [
         {"key": "EURUSD", "display": "EUR/USD"},
