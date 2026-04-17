@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getBatchResults, getBatch } from '../api'
-import type { BatchResultItem, BatchResultsResponse } from '../types'
+import type { BatchResultItem, BatchResultsResponse, SimulationStatus } from '../types'
 
 const TF_LABELS: Record<string, string> = { '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足' }
 const BATCH_TFS = ['1m', '5m', '15m', '1h']
@@ -106,6 +106,7 @@ export default function BatchResultsPage() {
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
   const [refinementData, setRefinementData] = useState<BatchResultsResponse | null>(null)
   const [refinementDone, setRefinementDone] = useState(false)
+  const [refinementSims, setRefinementSims] = useState<SimulationStatus[]>([])
   const refinementRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -135,6 +136,7 @@ export default function BatchResultsPage() {
     refinementRef.current = setInterval(async () => {
       try {
         const batch = await getBatch(refinementBatchId)
+        setRefinementSims(batch.simulations)
         const allDone = batch.completed + batch.failed === batch.total
         if (allDone) {
           clearInterval(refinementRef.current!)
@@ -184,17 +186,24 @@ export default function BatchResultsPage() {
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
 
-        {/* Refinement status / results */}
+        {/* Refinement progress */}
         {refinementBatchId && !refinementDone && (
-          <div style={{
-            padding: '12px 14px', borderRadius: '10px', marginBottom: '16px',
-            background: '#1e1040', border: '1px solid #4c1d95',
-            display: 'flex', alignItems: 'center', gap: '10px',
-          }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#a78bfa', boxShadow: '0 0 6px #a78bfa', flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', color: '#c4b5fd' }}>
-              上位5件を最大データ量で精密分析中...
-            </span>
+          <div style={{ marginBottom: '16px', border: '1px solid #4c1d95', borderRadius: '10px', overflow: 'hidden', background: '#0f0a1e' }}>
+            <div style={{ padding: '10px 14px', background: '#1e1040', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a78bfa', boxShadow: '0 0 6px #a78bfa' }} />
+                <span style={{ fontSize: '12px', fontWeight: '700', color: '#a78bfa' }}>精密分析中</span>
+              </div>
+              <span style={{ fontSize: '11px', color: '#7c3aed' }}>
+                {refinementSims.filter(s => s.status === 'COMPLETED' || s.status === 'FAILED').length} / {refinementSims.length} 完了
+              </span>
+            </div>
+            {refinementSims.map((s, i) => (
+              <RefinementSimRow key={s.id} sim={s} isLast={i === refinementSims.length - 1} />
+            ))}
+            {refinementSims.length === 0 && (
+              <div style={{ padding: '12px 14px', fontSize: '12px', color: '#475569' }}>準備中...</div>
+            )}
           </div>
         )}
         {refinementDone && refinedAll.length > 0 && (
@@ -348,6 +357,41 @@ export default function BatchResultsPage() {
             </div>
           </>
         )}
+      </div>
+    </div>
+  )
+}
+
+const TF_LABELS_SHORT: Record<string, string> = { '1m': '1分', '5m': '5分', '15m': '15分', '1h': '1時間' }
+
+function RefinementSimRow({ sim, isLast }: { sim: SimulationStatus; isLast: boolean }) {
+  const pct = sim.progress_pct ?? 0
+  const done = sim.status === 'COMPLETED'
+  const failed = sim.status === 'FAILED'
+  const running = sim.status === 'RUNNING'
+  const barColor = done ? '#22c55e' : failed ? '#ef4444' : '#7c3aed'
+
+  return (
+    <div style={{ borderBottom: isLast ? 'none' : '1px solid #1a1040', padding: '10px 14px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+        <div style={{ fontSize: '12px', color: '#c4b5fd', fontWeight: '600' }}>
+          {sim.symbol_display} · {TF_LABELS_SHORT[sim.timeframe] ?? sim.timeframe}足 / {sim.trade_duration}分取引
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {sim.total_bars && (
+            <span style={{ fontSize: '10px', color: '#475569' }}>{sim.total_bars.toLocaleString()}本</span>
+          )}
+          <span style={{
+            fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px',
+            background: done ? '#0f2a1a' : failed ? '#1a0a0a' : running ? '#1e1040' : '#1e293b',
+            color: done ? '#4ade80' : failed ? '#f87171' : running ? '#a78bfa' : '#475569',
+          }}>
+            {done ? '完了' : failed ? '失敗' : running ? `${pct}%` : '待機中'}
+          </span>
+        </div>
+      </div>
+      <div style={{ height: '4px', borderRadius: '2px', background: '#1e1040', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: barColor, transition: 'width 0.5s ease' }} />
       </div>
     </div>
   )
