@@ -4,7 +4,7 @@ import uuid
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -189,7 +189,10 @@ async def get_batch(batch_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/batch/{batch_id}/results", response_model=BatchResultsResponse)
 async def get_batch_results(
-    batch_id: str, min_trades: int = 10, db: AsyncSession = Depends(get_db)
+    batch_id: str,
+    min_trades: int = 10,
+    min_win_rate: float = Query(default=0.55, ge=0.0, le=1.0),
+    db: AsyncSession = Depends(get_db),
 ):
     sim_result = await db.execute(
         select(Simulation).where(Simulation.batch_id == batch_id)
@@ -213,6 +216,7 @@ async def get_batch_results(
                 select(StrategyResult)
                 .where(StrategyResult.sim_id == sim.id)
                 .where(StrategyResult.total_trades >= min_trades)
+                .where(StrategyResult.win_rate >= min_win_rate)
                 .order_by(StrategyResult.expected_value.desc(), StrategyResult.total_trades.desc())
                 .limit(10)
             )
@@ -242,7 +246,10 @@ async def get_batch_results(
 
 @router.get("/batch/{batch_id}/symbol-summary")
 async def get_symbol_summary(
-    batch_id: str, min_trades: int = 10, db: AsyncSession = Depends(get_db)
+    batch_id: str,
+    min_trades: int = 10,
+    min_win_rate: float = Query(default=0.55, ge=0.0, le=1.0),
+    db: AsyncSession = Depends(get_db),
 ):
     sim_result = await db.execute(
         select(Simulation).where(Simulation.batch_id == batch_id)
@@ -285,6 +292,7 @@ async def get_symbol_summary(
                 select(StrategyResult)
                 .where(StrategyResult.sim_id == s.id)
                 .where(StrategyResult.total_trades >= min_trades)
+                .where(StrategyResult.win_rate >= min_win_rate)
                 .order_by(StrategyResult.expected_value.desc(), StrategyResult.total_trades.desc())
                 .limit(1)
             )).scalar_one_or_none()

@@ -42,7 +42,7 @@ async def get_results(
     sort: str = Query(default="expected_value", enum=["win_rate", "total_trades", "profit_factor", "expected_value"]),
     order: str = Query(default="desc", enum=["asc", "desc"]),
     min_trades: int = Query(default=0, ge=0),
-    min_win_rate: float = Query(default=0.0, ge=0.0, le=1.0),
+    min_win_rate: float = Query(default=0.55, ge=0.0, le=1.0),
     family: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=10, le=200),

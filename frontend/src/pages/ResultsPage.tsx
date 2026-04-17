@@ -23,7 +23,7 @@ export default function ResultsPage() {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [minTrades, setMinTrades] = useState(10)
-  const [minWinRate, setMinWinRate] = useState(0)
+  const [minWinRate, setMinWinRate] = useState(55)
   const [sort, setSort] = useState('expected_value')
 
   const load = useCallback(async (p = 1) => {

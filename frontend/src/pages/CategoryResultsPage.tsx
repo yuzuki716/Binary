@@ -54,6 +54,7 @@ export default function CategoryResultsPage() {
   const navigate = useNavigate()
   const [summary, setSummary] = useState<Summary | null>(null)
   const [minTrades, setMinTrades] = useState(10)
+  const [minWinRate, setMinWinRate] = useState(55)
   const [loading, setLoading] = useState(true)
 
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
@@ -64,7 +65,7 @@ export default function CategoryResultsPage() {
   useEffect(() => {
     if (!batchId) return
     setLoading(true)
-    client.get<Summary>(`/batch/${batchId}/symbol-summary`, { params: { min_trades: minTrades } })
+    client.get<Summary>(`/batch/${batchId}/symbol-summary`, { params: { min_trades: minTrades, min_win_rate: minWinRate / 100 } })
       .then(({ data }) => {
         setSummary(data)
         if (data.refinement_batch_id && !refinementBatchId) {
@@ -72,7 +73,7 @@ export default function CategoryResultsPage() {
         }
       })
       .finally(() => setLoading(false))
-  }, [batchId, minTrades])
+  }, [batchId, minTrades, minWinRate])
 
   // Once we have refinement batch id, poll until done and load results
   useEffect(() => {
@@ -127,19 +128,34 @@ export default function CategoryResultsPage() {
       </div>
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
-        {/* Min trades filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>最低取引数</span>
-          {[5, 10, 20, 30].map((n) => (
-            <button key={n} onClick={() => setMinTrades(n)} style={{
-              padding: '4px 10px', borderRadius: '6px', border: 'none',
-              background: minTrades === n ? '#7c3aed' : '#1e293b',
-              color: minTrades === n ? '#fff' : '#64748b',
-              fontSize: '12px', cursor: 'pointer',
-            }}>
-              {n}+
-            </button>
-          ))}
+        {/* Filters */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>最低取引数</span>
+            {[5, 10, 20, 30].map((n) => (
+              <button key={n} onClick={() => setMinTrades(n)} style={{
+                padding: '4px 10px', borderRadius: '6px', border: 'none',
+                background: minTrades === n ? '#7c3aed' : '#1e293b',
+                color: minTrades === n ? '#fff' : '#64748b',
+                fontSize: '12px', cursor: 'pointer',
+              }}>
+                {n}+
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>最低勝率</span>
+            {[0, 50, 55, 60].map((n) => (
+              <button key={n} onClick={() => setMinWinRate(n)} style={{
+                padding: '4px 10px', borderRadius: '6px', border: 'none',
+                background: minWinRate === n ? '#7c3aed' : '#1e293b',
+                color: minWinRate === n ? '#fff' : '#64748b',
+                fontSize: '12px', cursor: 'pointer',
+              }}>
+                {n === 0 ? '全て' : `${n}%+`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading && (

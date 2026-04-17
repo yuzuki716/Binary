@@ -61,7 +61,7 @@ export async function getBatch(batchId: string): Promise<BatchSimStatus> {
   return res.data
 }
 
-export async function getBatchResults(batchId: string, minTrades = 10): Promise<BatchResultsResponse> {
-  const res = await client.get<BatchResultsResponse>(`/batch/${batchId}/results`, { params: { min_trades: minTrades } })
+export async function getBatchResults(batchId: string, minTrades = 10, minWinRate = 0.55): Promise<BatchResultsResponse> {
+  const res = await client.get<BatchResultsResponse>(`/batch/${batchId}/results`, { params: { min_trades: minTrades, min_win_rate: minWinRate } })
   return res.data
 }

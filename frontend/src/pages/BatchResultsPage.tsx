@@ -100,6 +100,7 @@ export default function BatchResultsPage() {
   const [data, setData] = useState<BatchResultsResponse | null>(null)
   const [activeTf, setActiveTf] = useState('1m')
   const [minTrades, setMinTrades] = useState(10)
+  const [minWinRate, setMinWinRate] = useState(55)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
@@ -110,7 +111,7 @@ export default function BatchResultsPage() {
   useEffect(() => {
     if (!batchId) return
     setLoading(true)
-    getBatchResults(batchId, minTrades)
+    getBatchResults(batchId, minTrades, minWinRate / 100)
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -126,7 +127,7 @@ export default function BatchResultsPage() {
       } catch { /* ignore */ }
     }, 3000)
     return () => clearInterval(pollRef)
-  }, [batchId, minTrades])
+  }, [batchId, minTrades, minWinRate])
 
   // Once we have refinement batch id, poll until done and load results
   useEffect(() => {
@@ -138,7 +139,7 @@ export default function BatchResultsPage() {
         if (allDone) {
           clearInterval(refinementRef.current!)
           setRefinementDone(true)
-          const rd = await getBatchResults(refinementBatchId, 5)
+          const rd = await getBatchResults(refinementBatchId, 5, 0.55)
           setRefinementData(rd)
         }
       } catch { /* ignore */ }
@@ -238,23 +239,42 @@ export default function BatchResultsPage() {
           })}
         </div>
 
-        {/* Min trades filter */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>最低取引数</span>
-          {[5, 10, 20, 30].map((n) => (
-            <button
-              key={n}
-              onClick={() => setMinTrades(n)}
-              style={{
-                padding: '4px 10px', borderRadius: '6px', border: 'none',
-                background: minTrades === n ? '#3b82f6' : '#1e293b',
-                color: minTrades === n ? '#fff' : '#64748b',
-                fontSize: '12px', cursor: 'pointer',
-              }}
-            >
-              {n}+
-            </button>
-          ))}
+        {/* Filters */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>最低取引数</span>
+            {[5, 10, 20, 30].map((n) => (
+              <button
+                key={n}
+                onClick={() => setMinTrades(n)}
+                style={{
+                  padding: '4px 10px', borderRadius: '6px', border: 'none',
+                  background: minTrades === n ? '#3b82f6' : '#1e293b',
+                  color: minTrades === n ? '#fff' : '#64748b',
+                  fontSize: '12px', cursor: 'pointer',
+                }}
+              >
+                {n}+
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>最低勝率</span>
+            {[0, 50, 55, 60].map((n) => (
+              <button
+                key={n}
+                onClick={() => setMinWinRate(n)}
+                style={{
+                  padding: '4px 10px', borderRadius: '6px', border: 'none',
+                  background: minWinRate === n ? '#3b82f6' : '#1e293b',
+                  color: minWinRate === n ? '#fff' : '#64748b',
+                  fontSize: '12px', cursor: 'pointer',
+                }}
+              >
+                {n === 0 ? '全て' : `${n}%+`}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading && (
