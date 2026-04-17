@@ -56,6 +56,26 @@ CCXT_TIMEFRAME_MAP = {
     "1h": "1h", "4h": "4h", "1d": "1d",
 }
 
+# Max bars realistically available per data source and timeframe
+_MAX_BARS: dict = {
+    "yfinance": {
+        "1m": 10000, "5m": 15000, "15m": 5500,
+        "1h": 17000, "4h": 4000,  "1d": 1800,
+    },
+    "ccxt": {
+        "1m": 20000, "5m": 30000, "15m": 40000,
+        "1h": 50000, "4h": 20000, "1d": 5000,
+    },
+}
+
+
+def get_max_bars(symbol_key: str, timeframe: str) -> int:
+    info = SYMBOL_MAP.get(symbol_key.upper())
+    if not info:
+        return 2000
+    return _MAX_BARS.get(info["source"], {}).get(timeframe, 2000)
+
+
 # LRU cache for OHLCV data (max 20 entries)
 _cache: OrderedDict = OrderedDict()
 _cache_max = 20

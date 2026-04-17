@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.models.schemas import SimulationCreate
+from app.services.data_fetcher import get_max_bars
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,7 @@ async def _run_batch_refinement(original_batch_id: str):
                 timeframe=sim.timeframe,
                 trade_duration=sim.trade_duration,
                 indicators=[result.indicator_family],
-                bar_limit=100000,
+                bar_limit=get_max_bars(sim.symbol, sim.timeframe),
                 target_strategy_names=[result.strategy_name],
                 refinement_for=original_batch_id,
             )
