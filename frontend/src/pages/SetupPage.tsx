@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore'
-import { fetchSymbols, createSimulation } from '../api'
+import { fetchSymbols, createSimulation, createBatch } from '../api'
 import type { SymbolInfo } from '../types'
 import { INDICATOR_FAMILIES, TIMEFRAMES } from '../types'
 
@@ -24,6 +24,7 @@ export default function SetupPage() {
   const [symbols, setSymbols] = useState<Record<string, SymbolInfo[]>>({})
   const [activeCategory, setActiveCategory] = useState<string>('crypto')
   const [loading, setLoading] = useState(false)
+  const [batchLoading, setBatchLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -42,6 +43,25 @@ export default function SetupPage() {
     }
     return acc + (counts[key] || 5)
   }, 0)
+
+  const handleBatchRun = async () => {
+    if (!symbol || selectedIndicators.length === 0) return
+    setBatchLoading(true)
+    setError(null)
+    try {
+      const res = await createBatch({
+        symbol,
+        symbol_display: symbolDisplay,
+        indicators: selectedIndicators,
+        bar_limit: barLimit,
+      })
+      navigate(`/batch-progress/${res.batch_id}`)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setBatchLoading(false)
+    }
+  }
 
   const handleRun = async () => {
     if (!symbol || selectedIndicators.length === 0) return
@@ -274,28 +294,49 @@ export default function SetupPage() {
           </div>
         )}
 
-        {/* Run button */}
+        {/* Batch run button */}
         <button
-          onClick={handleRun}
-          disabled={loading || selectedIndicators.length === 0}
+          onClick={handleBatchRun}
+          disabled={batchLoading || loading || selectedIndicators.length === 0}
           style={{
             width: '100%',
             padding: '16px',
             borderRadius: '12px',
             border: 'none',
-            background: loading || selectedIndicators.length === 0 ? '#334155' : '#3b82f6',
+            background: batchLoading || selectedIndicators.length === 0 ? '#334155' : '#7c3aed',
             color: '#fff',
             fontSize: '16px',
             fontWeight: '700',
-            cursor: loading || selectedIndicators.length === 0 ? 'not-allowed' : 'pointer',
+            cursor: batchLoading || selectedIndicators.length === 0 ? 'not-allowed' : 'pointer',
             transition: 'background 0.15s',
+            marginBottom: '10px',
+          }}
+        >
+          {batchLoading ? '起動中...' : '⚡ 一括分析（全時間足 × 全取引時間）'}
+        </button>
+
+        {/* Single run button */}
+        <button
+          onClick={handleRun}
+          disabled={loading || batchLoading || selectedIndicators.length === 0}
+          style={{
+            width: '100%',
+            padding: '14px',
+            borderRadius: '12px',
+            border: '1px solid #334155',
+            background: 'none',
+            color: loading || selectedIndicators.length === 0 ? '#334155' : '#94a3b8',
+            fontSize: '14px',
+            fontWeight: '600',
+            cursor: loading || selectedIndicators.length === 0 ? 'not-allowed' : 'pointer',
+            transition: 'all 0.15s',
             marginBottom: '8px',
           }}
         >
-          {loading ? '起動中...' : '▶ シミュレーション開始'}
+          {loading ? '起動中...' : `▶ 個別実行（${TIMEFRAMES.find(t => t.value === timeframe)?.label} / ${tradeDuration}分取引）`}
         </button>
-        <p style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', margin: 0 }}>
-          {symbolDisplay} / {TIMEFRAMES.find(t => t.value === timeframe)?.label} / {tradeDuration}分取引
+        <p style={{ textAlign: 'center', fontSize: '12px', color: '#475569', margin: 0 }}>
+          一括分析: 1m・5m・15m・1h × 1分・5分取引 を同時分析
         </p>
       </div>
     </div>

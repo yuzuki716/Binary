@@ -91,6 +91,46 @@ class ChartResponse(BaseModel):
     trades: List[TradeRecord]
 
 
+class BatchCreate(BaseModel):
+    symbol: str
+    symbol_display: str
+    indicators: List[str] = Field(
+        default=["SMA_CROSS", "EMA_CROSS", "RSI", "MACD", "BB", "STOCH", "RSI_MA", "MACD_BB"]
+    )
+    bar_limit: int = Field(default=2000, ge=100, le=5000)
+
+
+class BatchSimStatus(BaseModel):
+    batch_id: str
+    total: int
+    completed: int
+    failed: int
+    simulations: List[SimulationStatus]
+
+
+class BatchResultItem(BaseModel):
+    id: int
+    sim_id: str
+    timeframe: str
+    trade_duration: int
+    rank: Optional[int]
+    strategy_name: str
+    indicator_family: str
+    parameters: str
+    total_trades: int
+    wins: int
+    losses: int
+    win_rate: float
+    profit_factor: Optional[float]
+
+
+class BatchResultsResponse(BaseModel):
+    batch_id: str
+    symbol: str
+    symbol_display: str
+    results_by_tf: dict  # {"1m": {"1": [...], "5": [...]}, ...}
+
+
 class SymbolInfo(BaseModel):
     key: str
     display: str

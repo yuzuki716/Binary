@@ -96,6 +96,44 @@ export interface ChartResponse {
   trades: TradeRecord[]
 }
 
+export interface BatchCreateRequest {
+  symbol: string
+  symbol_display: string
+  indicators: string[]
+  bar_limit: number
+}
+
+export interface BatchSimStatus {
+  batch_id: string
+  total: number
+  completed: number
+  failed: number
+  simulations: SimulationStatus[]
+}
+
+export interface BatchResultItem {
+  id: number
+  sim_id: string
+  timeframe: string
+  trade_duration: number
+  rank: number | null
+  strategy_name: string
+  indicator_family: string
+  parameters: string
+  total_trades: number
+  wins: number
+  losses: number
+  win_rate: number
+  profit_factor: number | null
+}
+
+export interface BatchResultsResponse {
+  batch_id: string
+  symbol: string
+  symbol_display: string
+  results_by_tf: Record<string, Record<string, BatchResultItem[]>>
+}
+
 export const INDICATOR_FAMILIES = [
   { key: 'SMA_CROSS', label: 'SMA クロス' },
   { key: 'EMA_CROSS', label: 'EMA クロス' },

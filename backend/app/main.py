@@ -7,7 +7,7 @@ import logging
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.api import symbols, simulations, results, charts, websocket
+from app.api import symbols, simulations, results, charts, websocket, batch
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +43,7 @@ app.include_router(symbols.router, prefix="/api")
 app.include_router(simulations.router, prefix="/api")
 app.include_router(results.router, prefix="/api")
 app.include_router(charts.router, prefix="/api")
+app.include_router(batch.router, prefix="/api")
 app.include_router(websocket.router)
 
 

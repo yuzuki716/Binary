@@ -17,6 +17,7 @@ class Simulation(Base):
     total_bars = Column(Integer, nullable=True)
     total_strategies = Column(Integer, nullable=True)
     progress_pct = Column(Integer, nullable=False, default=0)
+    batch_id = Column(String, nullable=True, index=True)
     created_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
 

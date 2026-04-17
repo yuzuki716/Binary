@@ -1,7 +1,8 @@
 import client from './client'
 import type {
   SymbolsResponse, SimulationCreate, SimulationStatus,
-  ResultsResponse, ChartResponse
+  ResultsResponse, ChartResponse,
+  BatchCreateRequest, BatchSimStatus, BatchResultsResponse,
 } from '../types'
 
 export async function fetchSymbols(): Promise<SymbolsResponse> {
@@ -47,5 +48,20 @@ export async function fetchResultsSummary(simId: string) {
 
 export async function fetchChart(simId: string, strategyId: number): Promise<ChartResponse> {
   const res = await client.get<ChartResponse>(`/charts/${simId}/strategy/${strategyId}`)
+  return res.data
+}
+
+export async function createBatch(body: BatchCreateRequest): Promise<{ batch_id: string; sim_ids: string[]; total: number }> {
+  const res = await client.post('/batch', body)
+  return res.data
+}
+
+export async function getBatch(batchId: string): Promise<BatchSimStatus> {
+  const res = await client.get<BatchSimStatus>(`/batch/${batchId}`)
+  return res.data
+}
+
+export async function getBatchResults(batchId: string, minTrades = 10): Promise<BatchResultsResponse> {
+  const res = await client.get<BatchResultsResponse>(`/batch/${batchId}/results`, { params: { min_trades: minTrades } })
   return res.data
 }

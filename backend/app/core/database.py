@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 from app.core.config import settings
 import os
 
@@ -17,6 +18,11 @@ async def init_db():
     from app.models.orm import Simulation, StrategyResult  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migration: add batch_id column if missing
+        try:
+            await conn.execute(text("ALTER TABLE simulations ADD COLUMN batch_id TEXT"))
+        except Exception:
+            pass
 
 
 async def get_db():
