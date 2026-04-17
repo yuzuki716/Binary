@@ -47,6 +47,8 @@ export interface StrategyResult {
   losses: number
   win_rate: number
   profit_factor: number | null
+  expected_value: number | null   // profit_factor * total_trades
+  hourly_ev: number | null        // EV per hour
   signal_bar_count: number | null
 }
 
@@ -108,6 +110,7 @@ export interface BatchSimStatus {
   total: number
   completed: number
   failed: number
+  refinement_batch_id: string | null
   simulations: SimulationStatus[]
 }
 
@@ -125,6 +128,8 @@ export interface BatchResultItem {
   losses: number
   win_rate: number
   profit_factor: number | null
+  expected_value: number | null
+  hourly_ev: number | null
 }
 
 export interface BatchResultsResponse {

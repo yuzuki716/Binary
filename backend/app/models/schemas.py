@@ -12,7 +12,9 @@ class SimulationCreate(BaseModel):
         default=["SMA_CROSS", "EMA_CROSS", "RSI", "MACD", "BB", "STOCH", "RSI_MA", "MACD_BB"],
         description="Indicator families to test"
     )
-    bar_limit: int = Field(default=2000, ge=100, le=5000)
+    bar_limit: int = Field(default=2000, ge=100, le=10000)
+    target_strategy_names: Optional[List[str]] = Field(default=None, description="If set, only test these strategies")
+    refinement_for: Optional[str] = Field(default=None, description="Original batch_id if this is a refinement")
 
 
 class SimulationStatus(BaseModel):
@@ -42,6 +44,8 @@ class StrategyResultOut(BaseModel):
     losses: int
     win_rate: float
     profit_factor: Optional[float]
+    expected_value: Optional[float]   # profit_factor * total_trades
+    hourly_ev: Optional[float]        # EV per hour (computed)
     signal_bar_count: Optional[int]
 
 

@@ -18,6 +18,8 @@ class Simulation(Base):
     total_strategies = Column(Integer, nullable=True)
     progress_pct = Column(Integer, nullable=False, default=0)
     batch_id = Column(String, nullable=True, index=True)
+    refinement_batch_id = Column(String, nullable=True)  # set when refinement triggered
+    refinement_for = Column(String, nullable=True)        # original batch_id if refinement sim
     created_at = Column(DateTime, server_default=func.now())
     completed_at = Column(DateTime, nullable=True)
 
@@ -36,5 +38,8 @@ class StrategyResult(Base):
     losses = Column(Integer, nullable=False)
     win_rate = Column(Float, nullable=False)
     profit_factor = Column(Float, nullable=True)
+    expected_value = Column(Float, nullable=True)   # profit_factor * total_trades
+    timeframe = Column(String, nullable=True)        # copied from sim for hourly_ev
+    total_bars = Column(Integer, nullable=True)      # copied from sim for hourly_ev
     signal_bar_count = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

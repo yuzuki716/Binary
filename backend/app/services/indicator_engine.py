@@ -192,7 +192,7 @@ FAMILY_CONFIGS = {
 ALL_FAMILIES = list(FAMILY_CONFIGS.keys())
 
 
-def get_all_strategies(families: List[str] = None) -> List[StrategyConfig]:
+def get_all_strategies(families: List[str] = None, target_names: List[str] = None) -> List[StrategyConfig]:
     if families is None:
         families = ALL_FAMILIES
     result = []
@@ -200,6 +200,9 @@ def get_all_strategies(families: List[str] = None) -> List[StrategyConfig]:
         gen_fn = FAMILY_CONFIGS.get(fam)
         if gen_fn:
             result.extend(gen_fn())
+    if target_names:
+        target_set = set(target_names)
+        result = [s for s in result if s.name in target_set]
     return result
 
 

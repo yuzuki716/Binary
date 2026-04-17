@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { getBatchResults } from '../api'
+import { getBatchResults, getBatch } from '../api'
 import type { BatchResultItem, BatchResultsResponse } from '../types'
 
 const TF_LABELS: Record<string, string> = { '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足' }
@@ -22,6 +22,30 @@ function WinRateBar({ rate }: { rate: number }) {
         background: winRateColor(rate),
         transition: 'width 0.3s',
       }} />
+    </div>
+  )
+}
+
+function EvBadge({ ev, hourlyEv }: { ev: number | null; hourlyEv: number | null }) {
+  if (ev == null) return null
+  return (
+    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+      <span style={{
+        background: '#1e1040', color: '#a78bfa', fontSize: '11px',
+        fontWeight: '700', padding: '2px 7px', borderRadius: '5px',
+        border: '1px solid #4c1d95',
+      }}>
+        EV {ev.toFixed(1)}
+      </span>
+      {hourlyEv != null && (
+        <span style={{
+          background: '#0f2a1a', color: '#4ade80', fontSize: '11px',
+          fontWeight: '700', padding: '2px 7px', borderRadius: '5px',
+          border: '1px solid #166534',
+        }}>
+          毎時 {hourlyEv.toFixed(2)}
+        </span>
+      )}
     </div>
   )
 }
@@ -51,6 +75,7 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
           <div style={{ fontSize: '11px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {paramStr}
           </div>
+          <EvBadge ev={item.expected_value} hourlyEv={item.hourly_ev} />
         </div>
         <div style={{ textAlign: 'right', marginLeft: '12px', flexShrink: 0 }}>
           <div style={{ fontSize: '20px', fontWeight: '800', color: winRateColor(item.win_rate) }}>
@@ -59,6 +84,9 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
           <div style={{ fontSize: '11px', color: '#475569' }}>
             {item.total_trades}回
           </div>
+          {item.profit_factor != null && (
+            <div style={{ fontSize: '11px', color: '#64748b' }}>PF {item.profit_factor.toFixed(2)}</div>
+          )}
         </div>
       </div>
       <WinRateBar rate={item.win_rate} />
@@ -74,6 +102,10 @@ export default function BatchResultsPage() {
   const [minTrades, setMinTrades] = useState(10)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
+  const [refinementData, setRefinementData] = useState<BatchResultsResponse | null>(null)
+  const [refinementDone, setRefinementDone] = useState(false)
+  const refinementRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (!batchId) return
@@ -82,11 +114,48 @@ export default function BatchResultsPage() {
       .then(setData)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
+
+    // Poll for refinement batch_id
+    const pollRef = setInterval(async () => {
+      try {
+        const batch = await getBatch(batchId)
+        if (batch.refinement_batch_id) {
+          setRefinementBatchId(batch.refinement_batch_id)
+          clearInterval(pollRef)
+        }
+      } catch { /* ignore */ }
+    }, 3000)
+    return () => clearInterval(pollRef)
   }, [batchId, minTrades])
+
+  // Once we have refinement batch id, poll until done and load results
+  useEffect(() => {
+    if (!refinementBatchId) return
+    refinementRef.current = setInterval(async () => {
+      try {
+        const batch = await getBatch(refinementBatchId)
+        const allDone = batch.completed + batch.failed === batch.total
+        if (allDone) {
+          clearInterval(refinementRef.current!)
+          setRefinementDone(true)
+          const rd = await getBatchResults(refinementBatchId, 5)
+          setRefinementData(rd)
+        }
+      } catch { /* ignore */ }
+    }, 3000)
+    return () => clearInterval(refinementRef.current!)
+  }, [refinementBatchId])
 
   const tfResults = data?.results_by_tf[activeTf] || {}
   const dur1 = tfResults['1'] || []
   const dur5 = tfResults['5'] || []
+
+  // Refinement: flatten all TF/dur results, sort by EV
+  const refinedAll = refinementData
+    ? Object.values(refinementData.results_by_tf).flatMap((tfMap) =>
+        Object.values(tfMap).flat()
+      ).sort((a, b) => (b.expected_value || 0) - (a.expected_value || 0))
+    : []
 
   const handleStrategyClick = (item: BatchResultItem) => {
     navigate(`/results/${item.sim_id}/chart/${item.id}`)
@@ -113,6 +182,38 @@ export default function BatchResultsPage() {
       </div>
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
+
+        {/* Refinement status / results */}
+        {refinementBatchId && !refinementDone && (
+          <div style={{
+            padding: '12px 14px', borderRadius: '10px', marginBottom: '16px',
+            background: '#1e1040', border: '1px solid #4c1d95',
+            display: 'flex', alignItems: 'center', gap: '10px',
+          }}>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#a78bfa', boxShadow: '0 0 6px #a78bfa', flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#c4b5fd' }}>
+              上位5件を10000本で精密分析中...
+            </span>
+          </div>
+        )}
+        {refinementDone && refinedAll.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{
+              padding: '8px 12px', borderRadius: '8px 8px 0 0',
+              background: '#1e1040', border: '1px solid #4c1d95', borderBottom: 'none',
+              fontSize: '12px', fontWeight: '700', color: '#a78bfa',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}>
+              ✨ 精密分析結果（10000本）— 上位5件
+            </div>
+            <div style={{ border: '1px solid #4c1d95', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+              {refinedAll.map((item) => (
+                <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Timeframe tabs */}
         <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
           {BATCH_TFS.map((tf) => {

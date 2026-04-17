@@ -22,6 +22,8 @@ interface TopStrategy {
   wins: number
   losses: number
   parameters: string
+  expected_value: number | null
+  hourly_ev: number | null
 }
 
 interface SymbolEntry {
@@ -54,10 +56,10 @@ export default function CategoryResultsPage() {
       .finally(() => setLoading(false))
   }, [batchId, minTrades])
 
-  // Sort symbols by win_rate descending (nulls last)
+  // Sort symbols by expected_value descending (nulls last)
   const sorted = summary?.symbols.slice().sort((a, b) => {
-    const wr = (s: SymbolEntry) => s.top_strategy?.win_rate ?? -1
-    return wr(b) - wr(a)
+    const ev = (s: SymbolEntry) => s.top_strategy?.expected_value ?? -1
+    return ev(b) - ev(a)
   }) ?? []
 
   return (
@@ -144,10 +146,20 @@ export default function CategoryResultsPage() {
 
                 {top ? (
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: '22px', fontWeight: '800', color: winColor(top.win_rate) }}>
+                    <div style={{ fontSize: '20px', fontWeight: '800', color: winColor(top.win_rate) }}>
                       {Math.round(top.win_rate * 100)}%
                     </div>
                     <div style={{ fontSize: '11px', color: '#475569' }}>{top.total_trades}回</div>
+                    {top.expected_value != null && (
+                      <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '700' }}>
+                        EV {top.expected_value.toFixed(1)}
+                      </div>
+                    )}
+                    {top.hourly_ev != null && (
+                      <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '600' }}>
+                        毎時 {top.hourly_ev.toFixed(2)}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div style={{ fontSize: '12px', color: '#334155' }}>—</div>

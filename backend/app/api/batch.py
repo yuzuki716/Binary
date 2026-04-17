@@ -8,6 +8,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+BARS_PER_HOUR = {"1m": 60, "5m": 12, "15m": 4, "1h": 1, "4h": 0.25, "1d": 1/24}
+
+
+def _hourly_ev(ev, timeframe, total_bars):
+    if ev is None or not timeframe or not total_bars:
+        return None
+    bph = BARS_PER_HOUR.get(timeframe)
+    if not bph:
+        return None
+    return round(ev * bph / total_bars, 4)
+
 from app.core.database import get_db
 from app.models.orm import Simulation, StrategyResult
 from app.models.schemas import (
@@ -139,7 +150,7 @@ async def create_category_batch(
 
 # ── Status ──────────────────────────────────────────────────────────────────
 
-@router.get("/batch/{batch_id}", response_model=BatchSimStatus)
+@router.get("/batch/{batch_id}")
 async def get_batch(batch_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Simulation).where(Simulation.batch_id == batch_id)
@@ -150,15 +161,28 @@ async def get_batch(batch_id: str, db: AsyncSession = Depends(get_db)):
 
     completed = sum(1 for s in sims if s.status == "COMPLETED")
     failed = sum(1 for s in sims if s.status == "FAILED")
-    sim_statuses = [SimulationStatus.model_validate(s.__dict__) for s in sims]
+    refinement_batch_id = next((s.refinement_batch_id for s in sims if s.refinement_batch_id), None)
 
-    return BatchSimStatus(
-        batch_id=batch_id,
-        total=len(sims),
-        completed=completed,
-        failed=failed,
-        simulations=sim_statuses,
-    )
+    sim_statuses = [
+        {
+            "id": s.id, "symbol": s.symbol, "symbol_display": s.symbol_display,
+            "timeframe": s.timeframe, "trade_duration": s.trade_duration,
+            "status": s.status, "progress_pct": s.progress_pct,
+            "total_strategies": s.total_strategies, "total_bars": s.total_bars,
+            "error_message": s.error_message,
+            "created_at": s.created_at, "completed_at": s.completed_at,
+        }
+        for s in sims
+    ]
+
+    return {
+        "batch_id": batch_id,
+        "total": len(sims),
+        "completed": completed,
+        "failed": failed,
+        "refinement_batch_id": refinement_batch_id,
+        "simulations": sim_statuses,
+    }
 
 
 # ── TF-grouped results (single-symbol batch) ────────────────────────────────
@@ -189,7 +213,7 @@ async def get_batch_results(
                 select(StrategyResult)
                 .where(StrategyResult.sim_id == sim.id)
                 .where(StrategyResult.total_trades >= min_trades)
-                .order_by(StrategyResult.win_rate.desc())
+                .order_by(StrategyResult.expected_value.desc(), StrategyResult.total_trades.desc())
                 .limit(10)
             )
             results_by_tf[tf][str(dur)] = [
@@ -200,6 +224,8 @@ async def get_batch_results(
                     "indicator_family": r.indicator_family, "parameters": r.parameters,
                     "total_trades": r.total_trades, "wins": r.wins, "losses": r.losses,
                     "win_rate": r.win_rate, "profit_factor": r.profit_factor,
+                    "expected_value": r.expected_value,
+                    "hourly_ev": _hourly_ev(r.expected_value, r.timeframe or tf, r.total_bars),
                 }
                 for r in rows.scalars().all()
             ]
@@ -259,10 +285,11 @@ async def get_symbol_summary(
                 select(StrategyResult)
                 .where(StrategyResult.sim_id == s.id)
                 .where(StrategyResult.total_trades >= min_trades)
-                .order_by(StrategyResult.win_rate.desc())
+                .order_by(StrategyResult.expected_value.desc(), StrategyResult.total_trades.desc())
                 .limit(1)
             )).scalar_one_or_none()
-            if row and (top_strategy is None or row.win_rate > top_strategy["win_rate"]):
+            if row and (top_strategy is None or (row.expected_value or 0) > top_strategy.get("expected_value", 0)):
+                hev = _hourly_ev(row.expected_value, row.timeframe or s.timeframe, row.total_bars)
                 top_strategy = {
                     "id": row.id,
                     "sim_id": row.sim_id,
@@ -274,6 +301,8 @@ async def get_symbol_summary(
                     "wins": row.wins,
                     "losses": row.losses,
                     "parameters": row.parameters,
+                    "expected_value": row.expected_value,
+                    "hourly_ev": hev,
                 }
 
         symbol_results.append({

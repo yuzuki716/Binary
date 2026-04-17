@@ -24,7 +24,7 @@ export default function ResultsPage() {
   const [loading, setLoading] = useState(true)
   const [minTrades, setMinTrades] = useState(10)
   const [minWinRate, setMinWinRate] = useState(0)
-  const [sort, setSort] = useState('win_rate')
+  const [sort, setSort] = useState('expected_value')
 
   const load = useCallback(async (p = 1) => {
     if (!simId) return
@@ -95,6 +95,7 @@ export default function ResultsPage() {
               padding: '4px 10px', fontSize: '12px', cursor: 'pointer',
             }}
           >
+            <option value="expected_value">期待値順</option>
             <option value="win_rate">勝率順</option>
             <option value="total_trades">取引数順</option>
             <option value="profit_factor">PF順</option>
@@ -181,6 +182,19 @@ function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onCl
           <span style={{ fontSize: '12px', color: '#64748b' }}>
             {s.total_trades}回 · PF {pf}
           </span>
+        </div>
+        {/* EV badges */}
+        <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
+          {s.expected_value != null && (
+            <span style={{ background: '#1e1040', color: '#a78bfa', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #4c1d95' }}>
+              EV {s.expected_value.toFixed(1)}
+            </span>
+          )}
+          {s.hourly_ev != null && (
+            <span style={{ background: '#0f2a1a', color: '#4ade80', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #166534' }}>
+              毎時 {s.hourly_ev.toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
 

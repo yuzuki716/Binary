@@ -18,11 +18,19 @@ async def init_db():
     from app.models.orm import Simulation, StrategyResult  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Migration: add batch_id column if missing
-        try:
-            await conn.execute(text("ALTER TABLE simulations ADD COLUMN batch_id TEXT"))
-        except Exception:
-            pass
+        # Migrations: add new columns if missing
+        for stmt in [
+            "ALTER TABLE simulations ADD COLUMN batch_id TEXT",
+            "ALTER TABLE simulations ADD COLUMN refinement_batch_id TEXT",
+            "ALTER TABLE simulations ADD COLUMN refinement_for TEXT",
+            "ALTER TABLE strategy_results ADD COLUMN expected_value REAL",
+            "ALTER TABLE strategy_results ADD COLUMN timeframe TEXT",
+            "ALTER TABLE strategy_results ADD COLUMN total_bars INTEGER",
+        ]:
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
+                pass
 
 
 async def get_db():
