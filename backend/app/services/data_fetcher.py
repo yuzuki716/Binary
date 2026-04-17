@@ -82,36 +82,56 @@ def _cache_set(symbol: str, timeframe: str, df: pd.DataFrame):
 
 
 def _fetch_yfinance(ticker: str, timeframe: str, limit: int) -> pd.DataFrame:
-    import yfinance as yf
+    import requests
 
     tf_config = YF_TIMEFRAME_MAP.get(timeframe, {"period": "60d", "interval": "1h"})
     interval = tf_config["interval"]
     period = tf_config["period"]
 
-    df = yf.download(ticker, period=period, interval=interval,
-                     auto_adjust=True, progress=False, threads=False)
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+    }
+    params = {"interval": interval, "range": period}
+
+    resp = requests.get(url, headers=headers, params=params, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+
+    result = data.get("chart", {}).get("result")
+    if not result:
+        err = data.get("chart", {}).get("error", {})
+        raise ValueError(f"Yahoo Finance returned no data for {ticker}: {err}")
+
+    r = result[0]
+    timestamps = r["timestamp"]
+    q = r["indicators"]["quote"][0]
+    adj = r["indicators"].get("adjclose", [{}])[0]
+    closes = adj.get("adjclose") or q["close"]
+
+    df = pd.DataFrame({
+        "timestamp": timestamps,
+        "open":   q["open"],
+        "high":   q["high"],
+        "low":    q["low"],
+        "close":  closes,
+        "volume": q.get("volume") or [0] * len(timestamps),
+    }).dropna(subset=["close"])
 
     if df.empty:
-        raise ValueError(f"yfinance returned no data for {ticker}")
-
-    # yfinance >= 0.2.x returns MultiIndex columns for single ticker
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+        raise ValueError(f"Yahoo Finance returned no data for {ticker}")
 
     # Resample 1h to 4h if needed
-    if timeframe == "4h" and interval == "1h":
-        df = df.resample("4h").agg({
-            "Open": "first", "High": "max", "Low": "min",
-            "Close": "last", "Volume": "sum"
-        }).dropna()
+    if timeframe == "4h":
+        df["dt"] = pd.to_datetime(df["timestamp"], unit="s")
+        df = df.set_index("dt").resample("4h").agg({
+            "timestamp": "first", "open": "first", "high": "max",
+            "low": "min", "close": "last", "volume": "sum"
+        }).dropna(subset=["close"]).reset_index(drop=True)
 
-    df.index = df.index.tz_localize(None) if df.index.tz is not None else df.index
-    df = df.rename(columns={"Open": "open", "High": "high", "Low": "low",
-                             "Close": "close", "Volume": "volume"})
-    df = df[["open", "high", "low", "close", "volume"]].dropna()
-    df["timestamp"] = (df.index.astype(np.int64) // 10**9).astype(int)
-
-    return df.tail(limit).reset_index(drop=True)
+    return df[["timestamp", "open", "high", "low", "close", "volume"]].tail(limit).reset_index(drop=True)
 
 
 def _fetch_ccxt(ticker: str, timeframe: str, limit: int) -> pd.DataFrame:
