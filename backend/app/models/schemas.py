@@ -12,7 +12,7 @@ class SimulationCreate(BaseModel):
         default=["SMA_CROSS", "EMA_CROSS", "RSI", "MACD", "BB", "STOCH", "RSI_MA", "MACD_BB"],
         description="Indicator families to test"
     )
-    bar_limit: int = Field(default=2000, ge=100, le=10000)
+    bar_limit: int = Field(default=2000, ge=100, le=100000)
     target_strategy_names: Optional[List[str]] = Field(default=None, description="If set, only test these strategies")
     refinement_for: Optional[str] = Field(default=None, description="Original batch_id if this is a refinement")
 

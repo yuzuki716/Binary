@@ -171,7 +171,7 @@ export default function CategoryResultsPage() {
           }}>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#a78bfa', boxShadow: '0 0 6px #a78bfa', flexShrink: 0 }} />
             <span style={{ fontSize: '13px', color: '#c4b5fd' }}>
-              上位5件を10000本で精密分析中...
+              上位5件を100000本で精密分析中...
             </span>
           </div>
         )}
@@ -185,7 +185,7 @@ export default function CategoryResultsPage() {
               fontSize: '12px', fontWeight: '700', color: '#a78bfa',
               display: 'flex', alignItems: 'center', gap: '6px',
             }}>
-              ✨ 精密分析結果（10000本）— 上位5件
+              ✨ 精密分析結果（100000本）— 上位5件
             </div>
             <div style={{ border: '1px solid #4c1d95', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
               {refinedSorted.map((sym, idx) => {

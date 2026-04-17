@@ -172,7 +172,7 @@ async def run_simulation(sim_id: str, config: SimulationCreate):
 
 async def _maybe_trigger_refinement(sim_id: str, config: SimulationCreate, db):
     """After a sim completes, if it's part of a batch and was not itself a refinement,
-    check if all batch sims are done. If so, trigger top-5 refinement with 10000 bars."""
+    check if all batch sims are done. If so, trigger top-5 refinement with 100000 bars."""
     from app.core.database import AsyncSessionLocal
     from app.models.orm import Simulation, StrategyResult
     from sqlalchemy import update, select, func as sqlfunc
@@ -210,7 +210,7 @@ async def _maybe_trigger_refinement(sim_id: str, config: SimulationCreate, db):
 
 
 async def _run_batch_refinement(original_batch_id: str):
-    """Find top-5 strategies by EV across the batch, re-run each with 10000 bars."""
+    """Find top-5 strategies by EV across the batch, re-run each with 100000 bars."""
     from app.core.database import AsyncSessionLocal
     from app.models.orm import Simulation, StrategyResult
     from sqlalchemy import update, select, desc
@@ -262,7 +262,7 @@ async def _run_batch_refinement(original_batch_id: str):
                 timeframe=sim.timeframe,
                 trade_duration=sim.trade_duration,
                 indicators=[result.indicator_family],
-                bar_limit=10000,
+                bar_limit=100000,
                 target_strategy_names=[result.strategy_name],
                 refinement_for=original_batch_id,
             )
