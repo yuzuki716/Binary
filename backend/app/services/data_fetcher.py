@@ -62,8 +62,8 @@ _MAX_BARS: dict = {
         "1h": 17000, "4h": 4000,  "1d": 1800,
     },
     "ccxt": {
-        "1m": 20000, "5m": 30000, "15m": 40000,
-        "1h": 50000, "4h": 20000, "1d": 5000,
+        "1m": 10000, "5m": 12000, "15m": 12000,
+        "1h": 10000, "4h": 5000,  "1d": 3000,
     },
 }
 
@@ -167,8 +167,10 @@ def _fetch_ccxt(ticker: str, timeframe: str, limit: int) -> pd.DataFrame:
     df["timestamp"] = (df["timestamp_ms"] // 1000).astype(int)
     df = df[["timestamp", "open", "high", "low", "close", "volume"]].dropna()
 
-    # If we need more than 1000 bars, fetch more pages
-    while len(df) < limit and len(ohlcv) == 1000:
+    # Fetch more pages going backwards in time (max 12 extra pages = 13,000 bars total)
+    pages = 0
+    while len(df) < limit and len(ohlcv) == 1000 and pages < 12:
+        pages += 1
         since = int(ohlcv[0][0]) - (1000 * _timeframe_ms(tf))
         ohlcv = exchange.fetch_ohlcv(ticker, timeframe=tf, limit=1000, since=since)
         if not ohlcv:
@@ -200,9 +202,15 @@ async def fetch_ohlcv(symbol_key: str, timeframe: str, limit: int = 2000) -> pd.
     loop = asyncio.get_event_loop()
 
     if info["source"] == "yfinance":
-        df = await loop.run_in_executor(None, _fetch_yfinance, info["ticker"], timeframe, limit)
+        df = await asyncio.wait_for(
+            loop.run_in_executor(None, _fetch_yfinance, info["ticker"], timeframe, limit),
+            timeout=90,
+        )
     else:
-        df = await loop.run_in_executor(None, _fetch_ccxt, info["ticker"], timeframe, limit)
+        df = await asyncio.wait_for(
+            loop.run_in_executor(None, _fetch_ccxt, info["ticker"], timeframe, limit),
+            timeout=90,
+        )
 
     _cache_set(symbol_key, timeframe, df)
     return df
