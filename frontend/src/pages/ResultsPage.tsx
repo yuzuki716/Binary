@@ -144,7 +144,8 @@ export default function ResultsPage() {
 function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onClick: () => void }) {
   const pf = s.profit_factor ? s.profit_factor.toFixed(2) : '-'
   const familyLabel = FAMILY_LABELS[s.indicator_family] || s.indicator_family
-  const recommended = s.total_trades >= 30 && s.expected_value != null && (s.expected_value / s.total_trades) >= 0.03
+  const evPerTrade = s.expected_value != null && s.total_trades > 0 ? s.expected_value / s.total_trades : null
+  const recommended = s.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
   return (
     <div
@@ -193,9 +194,9 @@ function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onCl
         </div>
         {/* EV badges */}
         <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
-          {s.expected_value != null && (
-            <span style={{ background: '#1e1040', color: '#a78bfa', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #4c1d95' }}>
-              EV {s.expected_value.toFixed(1)}
+          {evPerTrade != null && (
+            <span style={{ background: '#1a0e2e', color: '#c4b5fd', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #6d28d9' }}>
+              1回 {evPerTrade >= 0 ? '+' : ''}{evPerTrade.toFixed(3)}
             </span>
           )}
           {s.hourly_ev != null && (

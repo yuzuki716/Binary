@@ -264,9 +264,9 @@ export default function CategoryResultsPage() {
                         {TF_LABEL[top.timeframe]} / {top.trade_duration}分取引 / {top.strategy_name}
                       </div>
                       <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
-                        {top.expected_value != null && (
-                          <span style={{ background: '#1e1040', color: '#a78bfa', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #4c1d95' }}>
-                            EV {top.expected_value.toFixed(1)}
+                        {top.expected_value != null && top.total_trades > 0 && (
+                          <span style={{ background: '#1a0e2e', color: '#c4b5fd', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #6d28d9' }}>
+                            1回 {(top.expected_value / top.total_trades) >= 0 ? '+' : ''}{(top.expected_value / top.total_trades).toFixed(3)}
                           </span>
                         )}
                         {top.hourly_ev != null && (
@@ -300,7 +300,8 @@ export default function CategoryResultsPage() {
           const top = sym.top_strategy
           const allDone = Object.values(sym.grid).flatMap(Object.values)
             .every((c) => c.status === 'COMPLETED' || c.status === 'FAILED')
-          const recommended = top != null && top.total_trades >= 30 && top.expected_value != null && (top.expected_value / top.total_trades) >= 0.03
+          const evPerTrade = top != null && top.expected_value != null && top.total_trades > 0 ? top.expected_value / top.total_trades : null
+          const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
           return (
             <div
@@ -352,9 +353,9 @@ export default function CategoryResultsPage() {
                       {Math.round(top.win_rate * 100)}%
                     </div>
                     <div style={{ fontSize: '11px', color: '#475569' }}>{top.total_trades}回</div>
-                    {top.expected_value != null && (
-                      <div style={{ fontSize: '11px', color: '#a78bfa', fontWeight: '700' }}>
-                        EV {top.expected_value.toFixed(1)}
+                    {evPerTrade != null && (
+                      <div style={{ fontSize: '11px', color: '#c4b5fd', fontWeight: '700' }}>
+                        1回 {evPerTrade >= 0 ? '+' : ''}{evPerTrade.toFixed(3)}
                       </div>
                     )}
                     {top.hourly_ev != null && (

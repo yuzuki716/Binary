@@ -26,17 +26,20 @@ function WinRateBar({ rate }: { rate: number }) {
   )
 }
 
-function EvBadge({ ev, hourlyEv }: { ev: number | null; hourlyEv: number | null }) {
+function EvBadge({ ev, hourlyEv, totalTrades }: { ev: number | null; hourlyEv: number | null; totalTrades: number }) {
   if (ev == null) return null
+  const evPerTrade = totalTrades > 0 ? ev / totalTrades : null
   return (
     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-      <span style={{
-        background: '#1e1040', color: '#a78bfa', fontSize: '11px',
-        fontWeight: '700', padding: '2px 7px', borderRadius: '5px',
-        border: '1px solid #4c1d95',
-      }}>
-        EV {ev.toFixed(1)}
-      </span>
+      {evPerTrade != null && (
+        <span style={{
+          background: '#1a0e2e', color: '#c4b5fd', fontSize: '11px',
+          fontWeight: '700', padding: '2px 7px', borderRadius: '5px',
+          border: '1px solid #6d28d9',
+        }}>
+          1回 {evPerTrade >= 0 ? '+' : ''}{evPerTrade.toFixed(3)}
+        </span>
+      )}
       {hourlyEv != null && (
         <span style={{
           background: '#0f2a1a', color: '#4ade80', fontSize: '11px',
@@ -55,7 +58,8 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
   let params: Record<string, any> = {}
   try { params = JSON.parse(item.parameters) } catch { /* noop */ }
   const paramStr = Object.entries(params).map(([k, v]) => `${k}:${v}`).join(' ')
-  const recommended = item.total_trades >= 30 && item.expected_value != null && (item.expected_value / item.total_trades) >= 0.03
+  const evPerTrade = item.expected_value != null && item.total_trades > 0 ? item.expected_value / item.total_trades : null
+  const recommended = item.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
   return (
     <button
@@ -83,7 +87,7 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
           <div style={{ fontSize: '11px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {paramStr}
           </div>
-          <EvBadge ev={item.expected_value} hourlyEv={item.hourly_ev} />
+          <EvBadge ev={item.expected_value} hourlyEv={item.hourly_ev} totalTrades={item.total_trades} />
         </div>
         <div style={{ textAlign: 'right', marginLeft: '12px', flexShrink: 0 }}>
           <div style={{ fontSize: '20px', fontWeight: '800', color: winRateColor(item.win_rate) }}>
