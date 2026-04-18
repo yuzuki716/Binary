@@ -144,17 +144,18 @@ export default function ResultsPage() {
 function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onClick: () => void }) {
   const pf = s.profit_factor ? s.profit_factor.toFixed(2) : '-'
   const familyLabel = FAMILY_LABELS[s.indicator_family] || s.indicator_family
+  const recommended = s.total_trades >= 30 && (s.hourly_ev ?? 0) >= 0.07
 
   return (
     <div
       onClick={onClick}
       style={{
-        background: '#1e293b',
+        background: recommended ? '#0a1a0f' : '#1e293b',
         borderRadius: '12px',
         padding: '14px',
         marginBottom: '8px',
         cursor: 'pointer',
-        border: '1px solid #334155',
+        border: `1px solid ${recommended ? '#16a34a' : '#334155'}`,
         display: 'flex',
         alignItems: 'center',
         gap: '12px',
@@ -169,8 +170,15 @@ function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onCl
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '14px', fontWeight: '600', color: '#f1f5f9', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {s.strategy_name}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#f1f5f9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {s.strategy_name}
+          </div>
+          {recommended && (
+            <span style={{ flexShrink: 0, background: '#0a1f0a', color: '#4ade80', fontSize: '9px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px', border: '1px solid #16a34a', letterSpacing: '0.03em' }}>
+              ◆ 推奨
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <span style={{

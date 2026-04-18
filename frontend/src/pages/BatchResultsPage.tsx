@@ -55,22 +55,30 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
   let params: Record<string, any> = {}
   try { params = JSON.parse(item.parameters) } catch { /* noop */ }
   const paramStr = Object.entries(params).map(([k, v]) => `${k}:${v}`).join(' ')
+  const recommended = item.total_trades >= 30 && (item.hourly_ev ?? 0) >= 0.07
 
   return (
     <button
       onClick={onClick}
       style={{
         width: '100%', textAlign: 'left', padding: '12px',
-        background: '#0a0f1e', borderRadius: '10px',
-        border: '1px solid #1e293b', cursor: 'pointer',
+        background: recommended ? '#0a1a0f' : '#0a0f1e', borderRadius: '10px',
+        border: `1px solid ${recommended ? '#16a34a' : '#1e293b'}`, cursor: 'pointer',
         transition: 'border-color 0.15s',
         marginBottom: '8px',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0', marginBottom: '2px' }}>
-            {item.strategy_name}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#e2e8f0' }}>
+              {item.strategy_name}
+            </div>
+            {recommended && (
+              <span style={{ flexShrink: 0, background: '#0a1f0a', color: '#4ade80', fontSize: '9px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px', border: '1px solid #16a34a' }}>
+                ◆ 推奨
+              </span>
+            )}
           </div>
           <div style={{ fontSize: '11px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {paramStr}

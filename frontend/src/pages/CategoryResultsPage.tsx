@@ -300,13 +300,14 @@ export default function CategoryResultsPage() {
           const top = sym.top_strategy
           const allDone = Object.values(sym.grid).flatMap(Object.values)
             .every((c) => c.status === 'COMPLETED' || c.status === 'FAILED')
+          const recommended = top != null && top.total_trades >= 30 && (top.hourly_ev ?? 0) >= 0.07
 
           return (
             <div
               key={sym.symbol}
               style={{
-                background: '#0a0f1e', borderRadius: '12px',
-                border: `1px solid ${top && top.win_rate >= 0.55 ? '#1d3461' : '#1e293b'}`,
+                background: recommended ? '#050f07' : '#0a0f1e', borderRadius: '12px',
+                border: `1px solid ${recommended ? '#16a34a' : top && top.win_rate >= 0.55 ? '#1d3461' : '#1e293b'}`,
                 marginBottom: '10px', overflow: 'hidden',
               }}
             >
@@ -324,8 +325,15 @@ export default function CategoryResultsPage() {
                 </div>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '15px', fontWeight: '700', color: '#e2e8f0' }}>
-                    {sym.symbol_display}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ fontSize: '15px', fontWeight: '700', color: '#e2e8f0' }}>
+                      {sym.symbol_display}
+                    </div>
+                    {recommended && (
+                      <span style={{ flexShrink: 0, background: '#0a1f0a', color: '#4ade80', fontSize: '9px', fontWeight: '800', padding: '2px 6px', borderRadius: '4px', border: '1px solid #16a34a' }}>
+                        ◆ 推奨
+                      </span>
+                    )}
                   </div>
                   {top ? (
                     <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
