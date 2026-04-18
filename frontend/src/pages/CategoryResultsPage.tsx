@@ -138,6 +138,9 @@ export default function CategoryResultsPage() {
             {summary.symbols.length} 銘柄 · {summary.completed}/{summary.total} 完了
           </p>
         )}
+        <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#4c1d95', background: '#1e1040', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', border: '1px solid #4c1d95' }}>
+          ※ 期待値・毎時EVはペイアウト率加味済み
+        </p>
       </div>
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
