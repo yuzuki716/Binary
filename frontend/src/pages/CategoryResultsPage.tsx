@@ -300,7 +300,7 @@ export default function CategoryResultsPage() {
           const top = sym.top_strategy
           const allDone = Object.values(sym.grid).flatMap(Object.values)
             .every((c) => c.status === 'COMPLETED' || c.status === 'FAILED')
-          const recommended = top != null && top.total_trades >= 30 && (top.hourly_ev ?? 0) >= 0.07
+          const recommended = top != null && top.total_trades >= 30 && top.expected_value != null && (top.expected_value / top.total_trades) >= 0.03
 
           return (
             <div

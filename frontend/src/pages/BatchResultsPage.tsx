@@ -55,7 +55,7 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
   let params: Record<string, any> = {}
   try { params = JSON.parse(item.parameters) } catch { /* noop */ }
   const paramStr = Object.entries(params).map(([k, v]) => `${k}:${v}`).join(' ')
-  const recommended = item.total_trades >= 30 && (item.hourly_ev ?? 0) >= 0.07
+  const recommended = item.total_trades >= 30 && item.expected_value != null && (item.expected_value / item.total_trades) >= 0.03
 
   return (
     <button

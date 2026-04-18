@@ -144,7 +144,7 @@ export default function ResultsPage() {
 function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onClick: () => void }) {
   const pf = s.profit_factor ? s.profit_factor.toFixed(2) : '-'
   const familyLabel = FAMILY_LABELS[s.indicator_family] || s.indicator_family
-  const recommended = s.total_trades >= 30 && (s.hourly_ev ?? 0) >= 0.07
+  const recommended = s.total_trades >= 30 && s.expected_value != null && (s.expected_value / s.total_trades) >= 0.03
 
   return (
     <div
