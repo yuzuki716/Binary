@@ -25,6 +25,7 @@ export default function ResultsPage() {
   const [minTrades, setMinTrades] = useState(10)
   const [minWinRate, setMinWinRate] = useState(55)
   const [sort, setSort] = useState('expected_value')
+  const [payoutRate, setPayoutRate] = useState<string>('')
 
   const load = useCallback(async (p = 1) => {
     if (!simId) return
@@ -49,6 +50,9 @@ export default function ResultsPage() {
   useEffect(() => {
     load(1)
   }, [load])
+
+  const pr = parseFloat(payoutRate)
+  const validPayout = !isNaN(pr) && pr > 0 && pr <= 100
 
   const handleStrategyClick = (s: StrategyResult) => {
     setSelectedStrategy(s)
@@ -100,13 +104,23 @@ export default function ResultsPage() {
             <option value="total_trades">取引数順</option>
             <option value="profit_factor">PF順</option>
           </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#0f172a', border: `1px solid ${validPayout ? '#6d28d9' : '#334155'}`, borderRadius: '16px', padding: '3px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>PO</span>
+            <input
+              type="number" min={1} max={99} placeholder="—"
+              value={payoutRate}
+              onChange={e => setPayoutRate(e.target.value)}
+              style={{ width: '36px', background: 'none', border: 'none', color: validPayout ? '#c4b5fd' : '#94a3b8', fontSize: '12px', fontWeight: '700', padding: 0, outline: 'none', textAlign: 'center' }}
+            />
+            <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>
+          </div>
         </div>
       </div>
 
       {/* Results list */}
       <div style={{ padding: '8px 12px' }}>
         {results.map((r) => (
-          <StrategyCard key={r.id} strategy={r} onClick={() => handleStrategyClick(r)} />
+          <StrategyCard key={r.id} strategy={r} onClick={() => handleStrategyClick(r)} payoutRate={validPayout ? pr : null} />
         ))}
 
         {loading && (
@@ -141,10 +155,12 @@ export default function ResultsPage() {
   )
 }
 
-function StrategyCard({ strategy: s, onClick }: { strategy: StrategyResult; onClick: () => void }) {
+function StrategyCard({ strategy: s, onClick, payoutRate }: { strategy: StrategyResult; onClick: () => void; payoutRate: number | null }) {
   const pf = s.profit_factor ? s.profit_factor.toFixed(2) : '-'
   const familyLabel = FAMILY_LABELS[s.indicator_family] || s.indicator_family
-  const evPerTrade = s.expected_value != null && s.total_trades > 0 ? s.expected_value / s.total_trades : null
+  const evPerTrade = payoutRate != null
+    ? s.win_rate * (payoutRate / 100) - (1 - s.win_rate)
+    : s.expected_value != null && s.total_trades > 0 ? s.expected_value / s.total_trades : null
   const recommended = s.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
   return (

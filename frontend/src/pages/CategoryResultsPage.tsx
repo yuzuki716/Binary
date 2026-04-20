@@ -67,6 +67,8 @@ export default function CategoryResultsPage() {
   const [minTrades, setMinTrades] = useState(10)
   const [minWinRate, setMinWinRate] = useState(55)
   const [loading, setLoading] = useState(true)
+  const [payoutRates, setPayoutRates] = useState<Record<string, string>>({})
+  const [showPayoutPanel, setShowPayoutPanel] = useState(false)
 
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
   const [refinementDone, setRefinementDone] = useState(false)
@@ -109,16 +111,29 @@ export default function CategoryResultsPage() {
     return () => clearInterval(refinementRef.current!)
   }, [refinementBatchId])
 
-  // Sort symbols by expected_value descending (nulls last)
+  const getEvPerTrade = (sym: SymbolEntry): number | null => {
+    const top = sym.top_strategy
+    if (!top) return null
+    const pr = parseFloat(payoutRates[sym.symbol] ?? '')
+    if (!isNaN(pr) && pr > 0 && pr <= 100) {
+      return top.win_rate * (pr / 100) - (1 - top.win_rate)
+    }
+    if (top.expected_value != null && top.total_trades > 0) {
+      return top.expected_value / top.total_trades
+    }
+    return null
+  }
+
+  const anyPayoutEntered = Object.values(payoutRates).some(v => { const n = parseFloat(v); return !isNaN(n) && n > 0 })
+
+  // Sort symbols by payout-adjusted EV descending (nulls last)
   const sorted = summary?.symbols.slice().sort((a, b) => {
-    const ev = (s: SymbolEntry) => s.top_strategy?.expected_value ?? -1
-    return ev(b) - ev(a)
+    return (getEvPerTrade(b) ?? -999) - (getEvPerTrade(a) ?? -999)
   }) ?? []
 
-  // Sort refined symbols by expected_value descending (nulls last)
+  // Sort refined symbols similarly
   const refinedSorted = refinedSymbols.slice().sort((a, b) => {
-    const ev = (s: SymbolEntry) => s.top_strategy?.expected_value ?? -1
-    return ev(b) - ev(a)
+    return (getEvPerTrade(b) ?? -999) - (getEvPerTrade(a) ?? -999)
   }).filter(s => s.top_strategy != null)
 
   return (
@@ -138,12 +153,40 @@ export default function CategoryResultsPage() {
             {summary.symbols.length} 銘柄 · {summary.completed}/{summary.total} 完了
           </p>
         )}
-        <p style={{ margin: '6px 0 0', fontSize: '11px', color: '#4c1d95', background: '#1e1040', display: 'inline-block', padding: '2px 8px', borderRadius: '4px', border: '1px solid #4c1d95' }}>
-          ※ 期待値・毎時EVはペイアウト率加味済み
-        </p>
+        <button
+          onClick={() => setShowPayoutPanel(v => !v)}
+          style={{ marginTop: '8px', background: anyPayoutEntered ? '#1e1040' : 'none', border: `1px solid ${anyPayoutEntered ? '#6d28d9' : '#334155'}`, color: anyPayoutEntered ? '#c4b5fd' : '#64748b', fontSize: '11px', fontWeight: '600', padding: '3px 10px', borderRadius: '6px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+        >
+          💹 ペイアウト率 {anyPayoutEntered ? '（設定済み）' : 'を設定'}
+          <span style={{ fontSize: '10px' }}>{showPayoutPanel ? '▲' : '▼'}</span>
+        </button>
       </div>
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
+
+        {/* Payout panel */}
+        {showPayoutPanel && summary && (
+          <div style={{ border: '1px solid #4c1d95', borderRadius: '10px', background: '#0f0a1e', padding: '14px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', fontWeight: '700', color: '#a78bfa', marginBottom: '12px' }}>
+              ペイアウト率を入力（%） — EVを再計算します
+            </div>
+            {summary.symbols.map(sym => (
+              <div key={sym.symbol} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: '600' }}>{sym.symbol_display}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <input
+                    type="number" min={1} max={99} placeholder="—"
+                    value={payoutRates[sym.symbol] ?? ''}
+                    onChange={e => setPayoutRates(prev => ({ ...prev, [sym.symbol]: e.target.value }))}
+                    style={{ width: '64px', padding: '5px 8px', textAlign: 'right', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px', fontWeight: '700', outline: 'none' }}
+                  />
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Filters */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -264,11 +307,11 @@ export default function CategoryResultsPage() {
                         {TF_LABEL[top.timeframe]} / {top.trade_duration}分取引 / {top.strategy_name}
                       </div>
                       <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
-                        {top.expected_value != null && top.total_trades > 0 && (
+                        {(() => { const ev = getEvPerTrade(sym); return ev != null ? (
                           <span style={{ background: '#1a0e2e', color: '#c4b5fd', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #6d28d9' }}>
-                            1回 {(top.expected_value / top.total_trades) >= 0 ? '+' : ''}{(top.expected_value / top.total_trades).toFixed(3)}
+                            1回 {ev >= 0 ? '+' : ''}{ev.toFixed(3)}
                           </span>
-                        )}
+                        ) : null })()}
                         {top.hourly_ev != null && (
                           <span style={{ background: '#0f2a1a', color: '#4ade80', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #166534' }}>
                             毎時 {top.hourly_ev.toFixed(2)}
@@ -300,7 +343,7 @@ export default function CategoryResultsPage() {
           const top = sym.top_strategy
           const allDone = Object.values(sym.grid).flatMap(Object.values)
             .every((c) => c.status === 'COMPLETED' || c.status === 'FAILED')
-          const evPerTrade = top != null && top.expected_value != null && top.total_trades > 0 ? top.expected_value / top.total_trades : null
+          const evPerTrade = getEvPerTrade(sym)
           const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
           return (

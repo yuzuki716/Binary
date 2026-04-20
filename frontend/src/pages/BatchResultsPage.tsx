@@ -26,9 +26,11 @@ function WinRateBar({ rate }: { rate: number }) {
   )
 }
 
-function EvBadge({ ev, hourlyEv, totalTrades }: { ev: number | null; hourlyEv: number | null; totalTrades: number }) {
-  if (ev == null) return null
-  const evPerTrade = totalTrades > 0 ? ev / totalTrades : null
+function EvBadge({ ev, hourlyEv, totalTrades, payoutRate, winRate }: { ev: number | null; hourlyEv: number | null; totalTrades: number; payoutRate: number | null; winRate: number }) {
+  const evPerTrade = payoutRate != null
+    ? winRate * (payoutRate / 100) - (1 - winRate)
+    : ev != null && totalTrades > 0 ? ev / totalTrades : null
+  if (evPerTrade == null && hourlyEv == null) return null
   return (
     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
       {evPerTrade != null && (
@@ -53,12 +55,14 @@ function EvBadge({ ev, hourlyEv, totalTrades }: { ev: number | null; hourlyEv: n
   )
 }
 
-function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () => void }) {
+function StrategyCard({ item, onClick, payoutRate }: { item: BatchResultItem; onClick: () => void; payoutRate: number | null }) {
   const pct = Math.round(item.win_rate * 100)
   let params: Record<string, any> = {}
   try { params = JSON.parse(item.parameters) } catch { /* noop */ }
   const paramStr = Object.entries(params).map(([k, v]) => `${k}:${v}`).join(' ')
-  const evPerTrade = item.expected_value != null && item.total_trades > 0 ? item.expected_value / item.total_trades : null
+  const evPerTrade = payoutRate != null
+    ? item.win_rate * (payoutRate / 100) - (1 - item.win_rate)
+    : item.expected_value != null && item.total_trades > 0 ? item.expected_value / item.total_trades : null
   const recommended = item.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
   return (
@@ -87,7 +91,7 @@ function StrategyCard({ item, onClick }: { item: BatchResultItem; onClick: () =>
           <div style={{ fontSize: '11px', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {paramStr}
           </div>
-          <EvBadge ev={item.expected_value} hourlyEv={item.hourly_ev} totalTrades={item.total_trades} />
+          <EvBadge ev={item.expected_value} hourlyEv={item.hourly_ev} totalTrades={item.total_trades} payoutRate={payoutRate} winRate={item.win_rate} />
         </div>
         <div style={{ textAlign: 'right', marginLeft: '12px', flexShrink: 0 }}>
           <div style={{ fontSize: '20px', fontWeight: '800', color: winRateColor(item.win_rate) }}>
@@ -115,11 +119,16 @@ export default function BatchResultsPage() {
   const [minWinRate, setMinWinRate] = useState(55)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [payoutRate, setPayoutRate] = useState<string>('')
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
   const [refinementData, setRefinementData] = useState<BatchResultsResponse | null>(null)
   const [refinementDone, setRefinementDone] = useState(false)
   const [refinementSims, setRefinementSims] = useState<SimulationStatus[]>([])
   const refinementRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const prNum = parseFloat(payoutRate)
+  const validPayout = !isNaN(prNum) && prNum > 0 && prNum <= 100
+  const activePayout = validPayout ? prNum : null
 
   useEffect(() => {
     if (!batchId) return
@@ -186,9 +195,21 @@ export default function BatchResultsPage() {
         >
           ← 設定に戻る
         </button>
-        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#f1f5f9' }}>
-          一括分析結果
-        </h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#f1f5f9' }}>
+            一括分析結果
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#0f172a', border: `1px solid ${validPayout ? '#6d28d9' : '#334155'}`, borderRadius: '12px', padding: '5px 10px' }}>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>PO</span>
+            <input
+              type="number" min={1} max={99} placeholder="—"
+              value={payoutRate}
+              onChange={e => setPayoutRate(e.target.value)}
+              style={{ width: '40px', background: 'none', border: 'none', color: validPayout ? '#c4b5fd' : '#94a3b8', fontSize: '13px', fontWeight: '700', padding: 0, outline: 'none', textAlign: 'center' }}
+            />
+            <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>
+          </div>
+        </div>
         {data && (
           <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
             {data.symbol_display} — 全時間足 × 全取引時間
@@ -230,7 +251,7 @@ export default function BatchResultsPage() {
             </div>
             <div style={{ border: '1px solid #4c1d95', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
               {refinedAll.map((item) => (
-                <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} />
+                <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} payoutRate={activePayout} />
               ))}
             </div>
           </div>
@@ -336,7 +357,7 @@ export default function BatchResultsPage() {
                 </p>
               ) : (
                 dur1.map((item) => (
-                  <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} />
+                  <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} payoutRate={activePayout} />
                 ))
               )}
             </div>
@@ -363,7 +384,7 @@ export default function BatchResultsPage() {
                 </p>
               ) : (
                 dur5.map((item) => (
-                  <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} />
+                  <StrategyCard key={item.id} item={item} onClick={() => handleStrategyClick(item)} payoutRate={activePayout} />
                 ))
               )}
             </div>
