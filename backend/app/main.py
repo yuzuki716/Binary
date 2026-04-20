@@ -7,7 +7,8 @@ import logging
 
 from app.core.config import settings
 from app.core.database import init_db
-from app.api import symbols, simulations, results, charts, websocket, batch
+from app.api import symbols, simulations, results, charts, websocket, batch, auto
+from app.services.auto_scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +22,9 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Binary Options Simulator API...")
     await init_db()
     logger.info("Database initialized")
+    start_scheduler()
     yield
+    stop_scheduler()
     logger.info("Shutting down...")
 
 
@@ -44,6 +47,7 @@ app.include_router(simulations.router, prefix="/api")
 app.include_router(results.router, prefix="/api")
 app.include_router(charts.router, prefix="/api")
 app.include_router(batch.router, prefix="/api")
+app.include_router(auto.router, prefix="/api")
 app.include_router(websocket.router)
 
 

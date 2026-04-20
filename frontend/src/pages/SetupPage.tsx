@@ -114,10 +114,10 @@ export default function SetupPage() {
         borderBottom: '1px solid #1e293b',
       }}>
         <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#f1f5f9' }}>
-          バイナリーオプション
+          手動分析
         </h1>
         <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>
-          自動シミュレーター
+          銘柄・時間足・インジケーターを指定して実行
         </p>
       </div>
 

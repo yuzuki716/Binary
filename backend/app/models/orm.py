@@ -3,6 +3,16 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 
+class AutoLatest(Base):
+    """Stores the most recent auto-analysis batch ID per category."""
+    __tablename__ = "auto_latest"
+
+    category = Column(String, primary_key=True)   # crypto / forex / indices
+    batch_id = Column(String, nullable=False)
+    created_at = Column(Integer, nullable=False)   # Unix timestamp
+    next_run_at = Column(Integer, nullable=True)   # Unix timestamp
+
+
 class Simulation(Base):
     __tablename__ = "simulations"
 

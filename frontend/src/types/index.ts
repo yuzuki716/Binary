@@ -150,6 +150,18 @@ export const INDICATOR_FAMILIES = [
   { key: 'MACD_BB',   label: 'MACD + BB (複合)' },
 ]
 
+export interface AutoCategoryInfo {
+  batch_id: string
+  created_at: number   // Unix timestamp
+  next_run_at: number | null
+}
+
+export interface AutoLatestResponse {
+  categories: Record<string, AutoCategoryInfo>
+  is_running: boolean
+  next_run_at: number | null
+}
+
 export const TIMEFRAMES = [
   { value: '1m',  label: '1分' },
   { value: '5m',  label: '5分' },

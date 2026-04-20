@@ -3,6 +3,7 @@ import type {
   SymbolsResponse, SimulationCreate, SimulationStatus,
   ResultsResponse, ChartResponse,
   BatchCreateRequest, BatchSimStatus, BatchResultsResponse,
+  AutoLatestResponse,
 } from '../types'
 
 export async function fetchSymbols(): Promise<SymbolsResponse> {
@@ -63,5 +64,10 @@ export async function getBatch(batchId: string): Promise<BatchSimStatus> {
 
 export async function getBatchResults(batchId: string, minTrades = 10, minWinRate = 0.55): Promise<BatchResultsResponse> {
   const res = await client.get<BatchResultsResponse>(`/batch/${batchId}/results`, { params: { min_trades: minTrades, min_win_rate: minWinRate } })
+  return res.data
+}
+
+export async function fetchAutoLatest(): Promise<AutoLatestResponse> {
+  const res = await client.get<AutoLatestResponse>('/auto/latest')
   return res.data
 }

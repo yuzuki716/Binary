@@ -1,8 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 
 const tabs = [
-  { path: '/', label: '設定', icon: '⚙️' },
-  { path: '/history', label: '履歴', icon: '📋' },
+  { path: '/',       label: 'ホーム',  icon: '📊' },
+  { path: '/setup',  label: '手動分析', icon: '⚙️' },
+  { path: '/history', label: '履歴',   icon: '📋' },
 ]
 
 export default function BottomNav() {
