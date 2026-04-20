@@ -176,7 +176,7 @@ export default function AutoHomePage() {
             <span style={{ fontSize: '12px', color: '#64748b' }}>%</span>
           </div>
           {validPayout && (
-            <span style={{ fontSize: '11px', color: '#6d28d9' }}>EV再計算中</span>
+            <span style={{ fontSize: '11px', color: '#a78bfa' }}>✓ 適用中</span>
           )}
         </div>
       </div>
