@@ -108,10 +108,12 @@ export default function AutoHomePage() {
     return null
   }
 
+  // Sort by hourly EV (accounts for trade frequency across timeframes),
+  // falling back to ev_per_trade only when hourly_ev is unavailable.
   const sorted = [...symbols].sort((a, b) => {
-    const evA = a.top_strategy ? (getEvPerTrade(a.top_strategy) ?? -999) : -999
-    const evB = b.top_strategy ? (getEvPerTrade(b.top_strategy) ?? -999) : -999
-    return evB - evA
+    const keyA = a.top_strategy ? (a.top_strategy.hourly_ev ?? getEvPerTrade(a.top_strategy) ?? -999) : -999
+    const keyB = b.top_strategy ? (b.top_strategy.hourly_ev ?? getEvPerTrade(b.top_strategy) ?? -999) : -999
+    return keyB - keyA
   })
 
   const hasResults = sorted.some(s => s.top_strategy != null)

@@ -126,15 +126,17 @@ export default function CategoryResultsPage() {
 
   const anyPayoutEntered = Object.values(payoutRates).some(v => { const n = parseFloat(v); return !isNaN(n) && n > 0 })
 
-  // Sort symbols by payout-adjusted EV descending (nulls last)
-  const sorted = summary?.symbols.slice().sort((a, b) => {
-    return (getEvPerTrade(b) ?? -999) - (getEvPerTrade(a) ?? -999)
-  }) ?? []
+  const getSortKey = (sym: SymbolEntry): number => {
+    const top = sym.top_strategy
+    if (!top) return -999
+    return top.hourly_ev ?? getEvPerTrade(sym) ?? -999
+  }
 
-  // Sort refined symbols similarly
-  const refinedSorted = refinedSymbols.slice().sort((a, b) => {
-    return (getEvPerTrade(b) ?? -999) - (getEvPerTrade(a) ?? -999)
-  }).filter(s => s.top_strategy != null)
+  // Sort by hourly EV so high-frequency timeframes rank correctly
+  const sorted = summary?.symbols.slice().sort((a, b) => getSortKey(b) - getSortKey(a)) ?? []
+  const refinedSorted = refinedSymbols.slice()
+    .sort((a, b) => getSortKey(b) - getSortKey(a))
+    .filter(s => s.top_strategy != null)
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', paddingBottom: '80px' }}>
