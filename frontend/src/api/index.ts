@@ -71,3 +71,9 @@ export async function fetchAutoLatest(): Promise<AutoLatestResponse> {
   const res = await client.get<AutoLatestResponse>('/auto/latest')
   return res.data
 }
+
+export async function savePayoutRate(symbolDisplay: string, payoutPct: number): Promise<void> {
+  await client.put(`/symbols/payout/${encodeURIComponent(symbolDisplay)}`, null, {
+    params: { payout_pct: payoutPct },
+  })
+}

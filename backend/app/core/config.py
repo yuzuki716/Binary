@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     default_bar_limit: int = 2000
     max_bar_limit: int = 5000
     discord_webhook_url: str = ""
-    notification_payout_pct: int = 80  # payout % used when calculating consEv for notifications
 
     class Config:
         env_file = ".env"

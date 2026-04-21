@@ -1,6 +1,8 @@
 """
 Discord webhook notifier.
 Sends a signal alert when an auto-analysis batch completes with positive 実効EV strategies.
+Per-symbol payout rates entered by the user in the UI are read from DB.
+Symbols with no stored payout rate are skipped.
 """
 import math
 import logging
@@ -9,7 +11,6 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Mirrors frontend utils/ev.ts
 _REFERENCE_PAYOUT = 0.80
 _Z = 0.674  # 75% one-tailed CI
 
@@ -37,10 +38,8 @@ async def notify_signals(batch_id: str, category: str) -> None:
     if not webhook_url:
         return
 
-    payout = settings.notification_payout_pct / 100.0
-
     from app.core.database import AsyncSessionLocal
-    from app.models.orm import StrategyResult, Simulation
+    from app.models.orm import StrategyResult, Simulation, SymbolPayoutRate
     from sqlalchemy import select
 
     async with AsyncSessionLocal() as db:
@@ -51,6 +50,9 @@ async def notify_signals(batch_id: str, category: str) -> None:
         )).scalars().all()
         if not sims:
             return
+
+        payout_rows = (await db.execute(select(SymbolPayoutRate))).scalars().all()
+        payout_map: dict[str, float] = {r.symbol_display: r.payout_pct / 100.0 for r in payout_rows}
 
         sim_ids = [s.id for s in sims]
         results = (await db.execute(
@@ -67,6 +69,9 @@ async def notify_signals(batch_id: str, category: str) -> None:
         sim = sim_map.get(r.sim_id)
         if not sim:
             continue
+        payout = payout_map.get(sim.symbol_display)
+        if payout is None:
+            continue  # no user-entered payout rate — skip
         ev = r.win_rate * payout - (1 - r.win_rate)
         fd = _fixed_discount(r.win_rate, r.total_trades)
         if fd is None:
@@ -76,19 +81,20 @@ async def notify_signals(batch_id: str, category: str) -> None:
             continue
         key = f"{sim.symbol_display}|{sim.timeframe}|{sim.trade_duration}"
         if key not in best or cons_ev > best[key][0]:
-            best[key] = (cons_ev, ev, r, sim)
+            best[key] = (cons_ev, ev, r, sim, payout)
 
     if not best:
         logger.info("No positive consEv signals for batch %s (%s)", batch_id, category)
         return
 
     cat_label = _CAT_JP.get(category, category)
-    lines = [f"🎯 **シグナル通知** — {cat_label}  (PO {settings.notification_payout_pct}%)\n"]
+    lines = [f"🎯 **シグナル通知** — {cat_label}\n"]
 
-    for cons_ev, ev, r, sim in sorted(best.values(), key=lambda x: x[0], reverse=True)[:10]:
+    for cons_ev, ev, r, sim, payout in sorted(best.values(), key=lambda x: x[0], reverse=True)[:10]:
         tf = _TF_JP.get(sim.timeframe, sim.timeframe)
+        po_pct = round(payout * 100)
         lines.append(
-            f"✅ **{sim.symbol_display}** | {tf} | {sim.trade_duration}分取引\n"
+            f"✅ **{sim.symbol_display}** | {tf} | {sim.trade_duration}分取引 (PO {po_pct}%)\n"
             f"　{r.strategy_name}\n"
             f"　勝率 {round(r.win_rate * 100)}% ({r.total_trades}回)"
             f"　EV: {ev:+.3f}　実効: {cons_ev:+.3f}"

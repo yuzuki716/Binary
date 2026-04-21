@@ -35,6 +35,15 @@ class Simulation(Base):
     completed_at = Column(DateTime, nullable=True)
 
 
+class SymbolPayoutRate(Base):
+    """Stores user-entered payout rate (%) per symbol_display."""
+    __tablename__ = "symbol_payout_rates"
+
+    symbol_display = Column(String, primary_key=True)   # e.g. "BTC/USDT"
+    payout_pct = Column(Integer, nullable=False)         # e.g. 80 → 80%
+    updated_at = Column(DateTime, server_default=func.now())
+
+
 class StrategyResult(Base):
     __tablename__ = "strategy_results"
 

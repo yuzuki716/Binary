@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { SimulationStatus, StrategyResult } from '../types'
+import { savePayoutRate as apiSavePayoutRate } from '../api'
 
 interface SimStore {
   // Setup state
@@ -69,6 +70,11 @@ export const useStore = create<SimStore>((set) => ({
   setPayoutRate: (symbolDisplay, rate) => set((state) => {
     const next = { ...state.payoutRates, [symbolDisplay]: rate }
     try { localStorage.setItem('payoutRates', JSON.stringify(next)) } catch { /* ignore */ }
+    // Sync to backend so Discord notifications can use this payout rate
+    const pct = parseInt(rate, 10)
+    if (!isNaN(pct) && pct > 0) {
+      apiSavePayoutRate(symbolDisplay, pct).catch(() => { /* best effort */ })
+    }
     return { payoutRates: next }
   }),
 }))
