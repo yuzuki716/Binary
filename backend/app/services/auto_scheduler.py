@@ -34,7 +34,7 @@ async def _run_auto_analysis() -> None:
     try:
         # Lazy import to avoid circular dependency at module load time
         from app.api.batch import (
-            CATEGORY_SYMBOLS, BATCH_TIMEFRAMES, BATCH_DURATIONS,
+            CATEGORY_SYMBOLS, BATCH_TIMEFRAMES, CATEGORY_DURATIONS,
             _create_and_launch_sims,
         )
 
@@ -44,12 +44,13 @@ async def _run_auto_analysis() -> None:
         for category in ["crypto", "forex", "indices"]:
             batch_id = str(uuid.uuid4())
             symbols = CATEGORY_SYMBOLS[category]
+            durations = CATEGORY_DURATIONS.get(category, [1, 5])
 
             try:
                 async with AsyncSessionLocal() as db:
                     await _create_and_launch_sims(
                         db, batch_id, symbols,
-                        BATCH_TIMEFRAMES, BATCH_DURATIONS,
+                        BATCH_TIMEFRAMES, durations,
                         ALL_INDICATORS, AUTO_BAR_LIMIT,
                     )
 

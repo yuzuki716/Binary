@@ -33,6 +33,13 @@ router = APIRouter()
 BATCH_TIMEFRAMES = ["1m", "5m", "15m", "1h"]
 BATCH_DURATIONS = [1, 5]
 
+# Crypto binary options require 5+ minute trades
+CATEGORY_DURATIONS: dict[str, list[int]] = {
+    "crypto":  [5],
+    "forex":   [1, 5],
+    "indices": [1, 5],
+}
+
 # All symbols per category (mirrors data_fetcher.SYMBOL_MAP)
 CATEGORY_SYMBOLS: dict[str, list[dict]] = {
     "crypto": [
@@ -43,14 +50,15 @@ CATEGORY_SYMBOLS: dict[str, list[dict]] = {
     ],
     "forex": [
         {"key": "EURUSD", "display": "EUR/USD"},
-        {"key": "USDJPY", "display": "USD/JPY"},
-        {"key": "GBPUSD", "display": "GBP/USD"},
-        {"key": "AUDUSD", "display": "AUD/USD"},
-        {"key": "USDCHF", "display": "USD/CHF"},
-        {"key": "USDCAD", "display": "USD/CAD"},
-        {"key": "NZDUSD", "display": "NZD/USD"},
-        {"key": "EURJPY", "display": "EUR/JPY"},
         {"key": "GBPJPY", "display": "GBP/JPY"},
+        {"key": "AUDJPY", "display": "AUD/JPY"},
+        {"key": "NZDJPY", "display": "NZD/JPY"},
+        {"key": "USDJPY", "display": "USD/JPY"},
+        {"key": "EURGBP", "display": "EUR/GBP"},
+        {"key": "AUDNZD", "display": "AUD/NZD"},
+        {"key": "USDCHF", "display": "USD/CHF"},
+        {"key": "GBPUSD", "display": "GBP/USD"},
+        {"key": "GBPCHF", "display": "GBP/CHF"},
     ],
     "indices": [
         {"key": "SPX500", "display": "S&P 500"},
@@ -137,12 +145,13 @@ async def create_category_batch(
         raise HTTPException(400, f"Unknown category: {category}. Use crypto/forex/indices.")
 
     batch_id = str(uuid.uuid4())
+    durations = CATEGORY_DURATIONS.get(category, BATCH_DURATIONS)
     await _create_and_launch_sims(
-        db, batch_id, symbols, BATCH_TIMEFRAMES, BATCH_DURATIONS,
+        db, batch_id, symbols, BATCH_TIMEFRAMES, durations,
         body.indicators, body.bar_limit,
         payout_rates=body.payout_rates,
     )
-    total = len(symbols) * len(BATCH_TIMEFRAMES) * len(BATCH_DURATIONS)
+    total = len(symbols) * len(BATCH_TIMEFRAMES) * len(durations)
     return {
         "batch_id": batch_id,
         "category": category,
