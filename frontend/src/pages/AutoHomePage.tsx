@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchAutoLatest } from '../api'
 import client from '../api/client'
 import type { AutoCategoryInfo } from '../types'
-import { conservativeEvPerTrade } from '../utils/ev'
+import { computeFixedDiscount } from '../utils/ev'
 
 const CATEGORIES = [
   { key: 'crypto',  label: '暗号資産' },
@@ -228,7 +228,8 @@ export default function AutoHomePage() {
         {sorted.map((sym, idx) => {
           const top = sym.top_strategy
           const evPerTrade = top ? getEvPerTrade(top) : null
-          const consEv = top ? conservativeEvPerTrade(top.win_rate, top.total_trades) : null
+          const fixedDiscount = top ? computeFixedDiscount(top.win_rate, top.total_trades) : null
+          const consEv = fixedDiscount != null && evPerTrade != null ? evPerTrade - fixedDiscount : null
           const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
           return (

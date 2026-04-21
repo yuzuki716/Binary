@@ -1,28 +1,36 @@
 /**
- * Conservative EV estimate that accounts for backtesting overfitting.
+ * Conservative EV adjustment for backtest overfitting.
  *
- * Two adjustments applied:
- *  1. Statistical: 90% confidence interval lower bound on win rate
- *     (corrects for small sample size)
- *  2. Overfitting decay: assumes 15-25% of backtest edge is curve-fitting
- *     (corrects for parameter selection bias across many combinations tested)
+ * computeFixedDiscount() returns a FIXED penalty (in EV units) that represents
+ * the expected performance decay from backtest to live trading.
+ * It is computed purely from win_rate and total_trades — never from payout rate.
  *
- * Always computed at REFERENCE_PAYOUT so the value never changes when the
- * user updates their payout rate input.
+ * Usage:
+ *   fixedDiscount = computeFixedDiscount(win_rate, total_trades)
+ *   consEv = evPerTrade(payout) - fixedDiscount
+ *
+ * When payout changes: evPerTrade changes, fixedDiscount stays the same.
+ *
+ * Method:
+ *  1. Statistical: 75% CI lower bound on win rate (corrects for small sample)
+ *  2. Overfitting decay 80-90% by sample size (corrects for parameter selection)
+ *  3. Penalty = EV loss at 80% reference payout (payout-independent fixed value)
  */
 
-const REFERENCE_PAYOUT = 0.80   // fixed reference — do NOT use user's payout here
+const REFERENCE_PAYOUT = 0.80
+const Z = 0.674  // 75% one-tailed CI
 
-export function conservativeEvPerTrade(winRate: number, totalTrades: number): number | null {
+export function computeFixedDiscount(winRate: number, totalTrades: number): number | null {
   if (totalTrades < 10) return null
 
-  // 90% CI lower bound (z = 1.282)
   const se = Math.sqrt(winRate * (1 - winRate) / totalTrades)
-  const pStat = winRate - 1.282 * se
+  const pStat = winRate - Z * se
 
-  // Overfitting decay: larger samples are more reliable
-  const decay = totalTrades >= 100 ? 0.85 : totalTrades >= 50 ? 0.80 : 0.75
-
+  const decay = totalTrades >= 100 ? 0.90 : totalTrades >= 50 ? 0.85 : 0.80
   const pConservative = 0.5 + (pStat - 0.5) * decay
-  return pConservative * REFERENCE_PAYOUT - (1 - pConservative)
+
+  const evRaw  = winRate      * REFERENCE_PAYOUT - (1 - winRate)
+  const evCons = pConservative * REFERENCE_PAYOUT - (1 - pConservative)
+
+  return Math.max(0, evRaw - evCons)
 }
