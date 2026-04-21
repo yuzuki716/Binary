@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import client from '../api/client'
+import { conservativeEvPerTrade } from '../utils/ev'
 
 const TF_LABEL: Record<string, string> = { '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足' }
 
@@ -319,6 +320,11 @@ export default function CategoryResultsPage() {
                             毎時 {top.hourly_ev.toFixed(2)}
                           </span>
                         )}
+                        {(() => { const ce = conservativeEvPerTrade(top.win_rate, top.total_trades); return ce != null ? (
+                          <span style={{ background: '#1c1000', color: ce >= 0 ? '#fbbf24' : '#f97316', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: `1px solid ${ce >= 0 ? '#92400e' : '#7c2d12'}` }}>
+                            実効 {ce >= 0 ? '+' : ''}{ce.toFixed(3)}
+                          </span>
+                        ) : null })()}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -346,6 +352,7 @@ export default function CategoryResultsPage() {
           const allDone = Object.values(sym.grid).flatMap(Object.values)
             .every((c) => c.status === 'COMPLETED' || c.status === 'FAILED')
           const evPerTrade = getEvPerTrade(sym)
+          const consEv = top ? conservativeEvPerTrade(top.win_rate, top.total_trades) : null
           const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
           return (
@@ -406,6 +413,11 @@ export default function CategoryResultsPage() {
                     {top.hourly_ev != null && (
                       <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: '600' }}>
                         毎時 {top.hourly_ev.toFixed(2)}
+                      </div>
+                    )}
+                    {consEv != null && (
+                      <div style={{ fontSize: '11px', color: consEv >= 0 ? '#fbbf24' : '#f97316', fontWeight: '700' }}>
+                        実効 {consEv >= 0 ? '+' : ''}{consEv.toFixed(3)}
                       </div>
                     )}
                   </div>

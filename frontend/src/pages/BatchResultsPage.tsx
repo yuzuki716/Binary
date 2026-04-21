@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getBatchResults, getBatch } from '../api'
 import type { BatchResultItem, BatchResultsResponse, SimulationStatus } from '../types'
+import { conservativeEvPerTrade } from '../utils/ev'
 
 const TF_LABELS: Record<string, string> = { '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足' }
 const BATCH_TFS = ['1m', '5m', '15m', '1h']
@@ -30,25 +31,23 @@ function EvBadge({ ev, hourlyEv, totalTrades, payoutRate, winRate }: { ev: numbe
   const evPerTrade = payoutRate != null
     ? winRate * (payoutRate / 100) - (1 - winRate)
     : ev != null && totalTrades > 0 ? ev / totalTrades : null
-  if (evPerTrade == null && hourlyEv == null) return null
+  const consEv = conservativeEvPerTrade(winRate, totalTrades)
+  if (evPerTrade == null && hourlyEv == null && consEv == null) return null
   return (
     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
       {evPerTrade != null && (
-        <span style={{
-          background: '#1a0e2e', color: '#c4b5fd', fontSize: '11px',
-          fontWeight: '700', padding: '2px 7px', borderRadius: '5px',
-          border: '1px solid #6d28d9',
-        }}>
+        <span style={{ background: '#1a0e2e', color: '#c4b5fd', fontSize: '11px', fontWeight: '700', padding: '2px 7px', borderRadius: '5px', border: '1px solid #6d28d9' }}>
           1回 {evPerTrade >= 0 ? '+' : ''}{evPerTrade.toFixed(3)}
         </span>
       )}
       {hourlyEv != null && (
-        <span style={{
-          background: '#0f2a1a', color: '#4ade80', fontSize: '11px',
-          fontWeight: '700', padding: '2px 7px', borderRadius: '5px',
-          border: '1px solid #166534',
-        }}>
+        <span style={{ background: '#0f2a1a', color: '#4ade80', fontSize: '11px', fontWeight: '700', padding: '2px 7px', borderRadius: '5px', border: '1px solid #166534' }}>
           毎時 {hourlyEv.toFixed(2)}
+        </span>
+      )}
+      {consEv != null && (
+        <span style={{ background: '#1c1000', color: consEv >= 0 ? '#fbbf24' : '#f97316', fontSize: '11px', fontWeight: '700', padding: '2px 7px', borderRadius: '5px', border: `1px solid ${consEv >= 0 ? '#92400e' : '#7c2d12'}` }}>
+          実効 {consEv >= 0 ? '+' : ''}{consEv.toFixed(3)}
         </span>
       )}
     </div>

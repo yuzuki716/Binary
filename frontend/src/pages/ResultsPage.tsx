@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { fetchResults, getSimulation } from '../api'
 import type { StrategyResult, SimulationStatus } from '../types'
+import { conservativeEvPerTrade } from '../utils/ev'
 import WinRateBadge from '../components/common/WinRateBadge'
 
 const FAMILY_LABELS: Record<string, string> = {
@@ -161,6 +162,7 @@ function StrategyCard({ strategy: s, onClick, payoutRate }: { strategy: Strategy
   const evPerTrade = payoutRate != null
     ? s.win_rate * (payoutRate / 100) - (1 - s.win_rate)
     : s.expected_value != null && s.total_trades > 0 ? s.expected_value / s.total_trades : null
+  const consEv = conservativeEvPerTrade(s.win_rate, s.total_trades)
   const recommended = s.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
 
   return (
@@ -218,6 +220,11 @@ function StrategyCard({ strategy: s, onClick, payoutRate }: { strategy: Strategy
           {s.hourly_ev != null && (
             <span style={{ background: '#0f2a1a', color: '#4ade80', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #166534' }}>
               毎時 {s.hourly_ev.toFixed(2)}
+            </span>
+          )}
+          {consEv != null && (
+            <span style={{ background: '#1c1000', color: consEv >= 0 ? '#fbbf24' : '#f97316', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: `1px solid ${consEv >= 0 ? '#92400e' : '#7c2d12'}` }}>
+              実効 {consEv >= 0 ? '+' : ''}{consEv.toFixed(3)}
             </span>
           )}
         </div>
