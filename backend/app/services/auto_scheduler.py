@@ -80,8 +80,11 @@ async def _run_auto_analysis() -> None:
         logger.info("Auto-analysis batches launched")
 
 
-def start_scheduler() -> None:
+async def start_scheduler() -> None:
     global _scheduler
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown(wait=False)
+
     _scheduler = AsyncIOScheduler(timezone="UTC")
     _scheduler.add_job(
         _run_auto_analysis,
@@ -93,8 +96,8 @@ def start_scheduler() -> None:
     )
     _scheduler.start()
     logger.info("Scheduler started (interval=%d min)", AUTO_INTERVAL_MINUTES)
-    # Fire immediately so results are ready without waiting 30 minutes
-    asyncio.create_task(_run_auto_analysis())
+    # Fire immediately on startup so results are ready without waiting
+    asyncio.ensure_future(_run_auto_analysis())
 
 
 def stop_scheduler() -> None:

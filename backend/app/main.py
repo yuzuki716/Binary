@@ -8,7 +8,7 @@ import logging
 from app.core.config import settings
 from app.core.database import init_db
 from app.api import symbols, simulations, results, charts, websocket, batch, auto
-from app.services.auto_scheduler import start_scheduler, stop_scheduler
+from app.services.auto_scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Binary Options Simulator API...")
     await init_db()
     logger.info("Database initialized")
-    start_scheduler()
+    await start_scheduler()
     yield
     stop_scheduler()
     logger.info("Shutting down...")
@@ -53,7 +53,16 @@ app.include_router(websocket.router)
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "app": settings.app_name}
+    status = get_scheduler_status()
+    # Watchdog: restart scheduler if APScheduler lost its job (e.g. crashed)
+    if status["next_run_at"] is None and not status["is_running"]:
+        try:
+            stop_scheduler()
+            await start_scheduler()
+            logger.info("Scheduler restarted by health watchdog")
+        except Exception as e:
+            logger.warning("Health watchdog failed to restart scheduler: %s", e)
+    return {"status": "ok"}
 
 
 # Serve frontend static files in production
