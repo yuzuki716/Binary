@@ -107,11 +107,18 @@ export default function AutoHomePage() {
     return null
   }
 
-  // Sort by hourly EV (accounts for trade frequency across timeframes),
-  // falling back to ev_per_trade only when hourly_ev is unavailable.
+  const getConsEv = (top: TopStrategy, symbolDisplay: string): number | null => {
+    const ev = getEvPerTrade(top, symbolDisplay)
+    const fd = computeFixedDiscount(top.win_rate, top.total_trades)
+    return ev != null && fd != null ? ev - fd : null
+  }
+
+  // Sort by conservative EV (実効EV), using hourly_ev as tiebreaker for timeframe fairness
   const sorted = [...symbols].sort((a, b) => {
-    const keyA = a.top_strategy ? (a.top_strategy.hourly_ev ?? getEvPerTrade(a.top_strategy, a.symbol_display) ?? -999) : -999
-    const keyB = b.top_strategy ? (b.top_strategy.hourly_ev ?? getEvPerTrade(b.top_strategy, b.symbol_display) ?? -999) : -999
+    const topA = a.top_strategy
+    const topB = b.top_strategy
+    const keyA = topA ? (getConsEv(topA, a.symbol_display) ?? topA.hourly_ev ?? -999) : -999
+    const keyB = topB ? (getConsEv(topB, b.symbol_display) ?? topB.hourly_ev ?? -999) : -999
     return keyB - keyA
   })
 

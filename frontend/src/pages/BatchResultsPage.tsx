@@ -179,7 +179,9 @@ export default function BatchResultsPage() {
     return [...items].sort((a, b) => {
       const evA = a.win_rate * (activePayout / 100) - (1 - a.win_rate)
       const evB = b.win_rate * (activePayout / 100) - (1 - b.win_rate)
-      return evB - evA
+      const consA = evA - (computeFixedDiscount(a.win_rate, a.total_trades) ?? 0)
+      const consB = evB - (computeFixedDiscount(b.win_rate, b.total_trades) ?? 0)
+      return consB - consA
     })
   }
   const dur1 = sortByPayout(tfResults['1'] || [])

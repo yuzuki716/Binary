@@ -134,7 +134,10 @@ export default function CategoryResultsPage() {
   const getSortKey = (sym: SymbolEntry): number => {
     const top = sym.top_strategy
     if (!top) return -999
-    return top.hourly_ev ?? getEvPerTrade(sym) ?? -999
+    const ev = getEvPerTrade(sym)
+    const fd = computeFixedDiscount(top.win_rate, top.total_trades)
+    const consEv = ev != null && fd != null ? ev - fd : null
+    return consEv ?? top.hourly_ev ?? -999
   }
 
   // Sort by hourly EV so high-frequency timeframes rank correctly
