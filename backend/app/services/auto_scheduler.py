@@ -41,7 +41,7 @@ async def _run_auto_analysis() -> None:
         now = int(time.time())
         next_run = now + AUTO_INTERVAL_MINUTES * 60
 
-        for category in ["crypto", "forex", "indices"]:
+        for category in ["crypto", "forex"]:
             batch_id = str(uuid.uuid4())
             symbols = CATEGORY_SYMBOLS[category]
             durations = CATEGORY_DURATIONS.get(category, [1, 5])

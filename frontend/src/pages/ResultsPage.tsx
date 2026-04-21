@@ -120,8 +120,15 @@ export default function ResultsPage() {
 
       {/* Results list */}
       <div style={{ padding: '8px 12px' }}>
-        {results.map((r) => (
-          <StrategyCard key={r.id} strategy={r} onClick={() => handleStrategyClick(r)} payoutRate={validPayout ? pr : null} />
+        {(validPayout
+          ? [...results].sort((a, b) => {
+              const evA = a.win_rate * (pr / 100) - (1 - a.win_rate)
+              const evB = b.win_rate * (pr / 100) - (1 - b.win_rate)
+              return evB - evA
+            })
+          : results
+        ).map((r, idx) => (
+          <StrategyCard key={r.id} strategy={r} onClick={() => handleStrategyClick(r)} payoutRate={validPayout ? pr : null} overrideRank={validPayout ? idx + 1 : undefined} />
         ))}
 
         {loading && (
@@ -156,7 +163,7 @@ export default function ResultsPage() {
   )
 }
 
-function StrategyCard({ strategy: s, onClick, payoutRate }: { strategy: StrategyResult; onClick: () => void; payoutRate: number | null }) {
+function StrategyCard({ strategy: s, onClick, payoutRate, overrideRank }: { strategy: StrategyResult; onClick: () => void; payoutRate: number | null; overrideRank?: number }) {
   const pf = s.profit_factor ? s.profit_factor.toFixed(2) : '-'
   const familyLabel = FAMILY_LABELS[s.indicator_family] || s.indicator_family
   const evPerTrade = payoutRate != null
@@ -185,7 +192,7 @@ function StrategyCard({ strategy: s, onClick, payoutRate }: { strategy: Strategy
     >
       {/* Rank */}
       <div style={{ fontSize: '16px', fontWeight: '700', color: '#475569', minWidth: '28px', textAlign: 'right' }}>
-        {s.rank ? `#${s.rank}` : '—'}
+        {overrideRank != null ? `#${overrideRank}` : s.rank ? `#${s.rank}` : '—'}
       </div>
 
       {/* Info */}

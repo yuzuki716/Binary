@@ -7,9 +7,8 @@ import type { SymbolInfo } from '../types'
 import { INDICATOR_FAMILIES, TIMEFRAMES } from '../types'
 
 const CATEGORY_LABELS: Record<string, string> = {
-  forex: '為替',
   crypto: '暗号資産',
-  indices: '指数',
+  forex: '為替',
 }
 
 export default function SetupPage() {

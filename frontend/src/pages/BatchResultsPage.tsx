@@ -173,8 +173,17 @@ export default function BatchResultsPage() {
   }, [refinementBatchId])
 
   const tfResults = data?.results_by_tf[activeTf] || {}
-  const dur1 = tfResults['1'] || []
-  const dur5 = tfResults['5'] || []
+
+  const sortByPayout = (items: BatchResultItem[]) => {
+    if (!activePayout) return items
+    return [...items].sort((a, b) => {
+      const evA = a.win_rate * (activePayout / 100) - (1 - a.win_rate)
+      const evB = b.win_rate * (activePayout / 100) - (1 - b.win_rate)
+      return evB - evA
+    })
+  }
+  const dur1 = sortByPayout(tfResults['1'] || [])
+  const dur5 = sortByPayout(tfResults['5'] || [])
 
   // Refinement: flatten all TF/dur results, sort by EV
   const refinedAll = refinementData

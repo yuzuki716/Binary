@@ -7,9 +7,8 @@ import { computeFixedDiscount } from '../utils/ev'
 import { useStore } from '../store/useStore'
 
 const CATEGORIES = [
-  { key: 'crypto',  label: '暗号資産' },
-  { key: 'forex',   label: '為替' },
-  { key: 'indices', label: '指数' },
+  { key: 'crypto', label: '暗号資産' },
+  { key: 'forex',  label: '為替' },
 ]
 
 const TF_LABEL: Record<string, string> = {

@@ -35,9 +35,8 @@ BATCH_DURATIONS = [1, 5]
 
 # Crypto binary options require 5+ minute trades
 CATEGORY_DURATIONS: dict[str, list[int]] = {
-    "crypto":  [5],
-    "forex":   [1, 5],
-    "indices": [1, 5],
+    "crypto": [5],
+    "forex":  [1, 5],
 }
 
 # All symbols per category (mirrors data_fetcher.SYMBOL_MAP)
@@ -60,16 +59,9 @@ CATEGORY_SYMBOLS: dict[str, list[dict]] = {
         {"key": "GBPUSD", "display": "GBP/USD"},
         {"key": "GBPCHF", "display": "GBP/CHF"},
     ],
-    "indices": [
-        {"key": "SPX500", "display": "S&P 500"},
-        {"key": "NDX100", "display": "NASDAQ 100"},
-        {"key": "DJI",    "display": "Dow Jones"},
-        {"key": "N225",   "display": "日経 225"},
-        {"key": "DAX",    "display": "DAX 40"},
-    ],
 }
 
-CATEGORY_LABELS = {"crypto": "暗号資産", "forex": "為替", "indices": "指数"}
+CATEGORY_LABELS = {"crypto": "暗号資産", "forex": "為替"}
 
 
 async def _create_and_launch_sims(
