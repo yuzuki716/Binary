@@ -20,6 +20,15 @@ AUTO_INTERVAL_MINUTES = 30
 
 _scheduler: AsyncIOScheduler | None = None
 _is_running = False
+_auto_batches: dict[str, str] = {}  # batch_id -> category (kept for notification lookup)
+
+
+def is_auto_batch(batch_id: str) -> bool:
+    return batch_id in _auto_batches
+
+
+def get_auto_batch_category(batch_id: str) -> str | None:
+    return _auto_batches.get(batch_id)
 
 
 async def _run_auto_analysis() -> None:
@@ -45,6 +54,12 @@ async def _run_auto_analysis() -> None:
             batch_id = str(uuid.uuid4())
             symbols = CATEGORY_SYMBOLS[category]
             durations = CATEGORY_DURATIONS.get(category, [1, 5])
+
+            # Register for notification lookup; limit memory to last 40 entries
+            _auto_batches[batch_id] = category
+            if len(_auto_batches) > 40:
+                oldest = next(iter(_auto_batches))
+                del _auto_batches[oldest]
 
             try:
                 async with AsyncSessionLocal() as db:

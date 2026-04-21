@@ -223,6 +223,13 @@ async def _maybe_trigger_refinement(sim_id: str, config: SimulationCreate, db):
     logger.info(f"Batch {batch_id} complete — triggering top-5 refinement")
     asyncio.create_task(_run_batch_refinement(batch_id))
 
+    # Send Discord notification if this is an auto-analysis batch
+    from app.services.auto_scheduler import is_auto_batch, get_auto_batch_category
+    if is_auto_batch(batch_id):
+        category = get_auto_batch_category(batch_id) or "unknown"
+        from app.services.discord_notifier import notify_signals
+        asyncio.create_task(notify_signals(batch_id, category))
+
 
 async def _run_batch_refinement(original_batch_id: str):
     """Find top-5 strategies by EV across the batch, re-run each with 100000 bars."""
