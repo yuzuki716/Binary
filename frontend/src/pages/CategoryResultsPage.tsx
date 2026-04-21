@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import client from '../api/client'
 import { computeFixedDiscount } from '../utils/ev'
+import { useStore } from '../store/useStore'
 
 const TF_LABEL: Record<string, string> = { '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足' }
 
@@ -64,11 +65,11 @@ interface BatchStatus {
 export default function CategoryResultsPage() {
   const { batchId } = useParams<{ batchId: string }>()
   const navigate = useNavigate()
+  const { payoutRates, setPayoutRate } = useStore()
   const [summary, setSummary] = useState<Summary | null>(null)
   const [minTrades, setMinTrades] = useState(10)
   const [minWinRate, setMinWinRate] = useState(55)
   const [loading, setLoading] = useState(true)
-  const [payoutRates, setPayoutRates] = useState<Record<string, string>>({})
   const [showPayoutPanel, setShowPayoutPanel] = useState(false)
 
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
@@ -115,7 +116,7 @@ export default function CategoryResultsPage() {
   const getEvPerTrade = (sym: SymbolEntry): number | null => {
     const top = sym.top_strategy
     if (!top) return null
-    const pr = parseFloat(payoutRates[sym.symbol] ?? '')
+    const pr = parseFloat(payoutRates[sym.symbol_display] ?? '')
     if (!isNaN(pr) && pr > 0 && pr <= 100) {
       return top.win_rate * (pr / 100) - (1 - top.win_rate)
     }
@@ -125,7 +126,10 @@ export default function CategoryResultsPage() {
     return null
   }
 
-  const anyPayoutEntered = Object.values(payoutRates).some(v => { const n = parseFloat(v); return !isNaN(n) && n > 0 })
+  const anyPayoutEntered = summary?.symbols.some(sym => {
+    const n = parseFloat(payoutRates[sym.symbol_display] ?? '')
+    return !isNaN(n) && n > 0
+  }) ?? false
 
   const getSortKey = (sym: SymbolEntry): number => {
     const top = sym.top_strategy
@@ -179,8 +183,8 @@ export default function CategoryResultsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <input
                     type="number" min={1} max={99} placeholder="—"
-                    value={payoutRates[sym.symbol] ?? ''}
-                    onChange={e => setPayoutRates(prev => ({ ...prev, [sym.symbol]: e.target.value }))}
+                    value={payoutRates[sym.symbol_display] ?? ''}
+                    onChange={e => setPayoutRate(sym.symbol_display, e.target.value)}
                     style={{ width: '64px', padding: '5px 8px', textAlign: 'right', background: '#1e293b', border: '1px solid #334155', borderRadius: '6px', color: '#f1f5f9', fontSize: '14px', fontWeight: '700', outline: 'none' }}
                   />
                   <span style={{ fontSize: '12px', color: '#64748b' }}>%</span>

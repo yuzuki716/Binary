@@ -4,6 +4,7 @@ import { fetchAutoLatest } from '../api'
 import client from '../api/client'
 import type { AutoCategoryInfo } from '../types'
 import { computeFixedDiscount } from '../utils/ev'
+import { useStore } from '../store/useStore'
 
 const CATEGORIES = [
   { key: 'crypto',  label: '暗号資産' },
@@ -56,12 +57,12 @@ interface SymbolEntry {
 
 export default function AutoHomePage() {
   const navigate = useNavigate()
+  const { payoutRates, setPayoutRate } = useStore()
   const [activeCategory, setActiveCategory] = useState('crypto')
   const [autoInfo, setAutoInfo] = useState<Record<string, AutoCategoryInfo>>({})
   const [summaries, setSummaries] = useState<Record<string, SymbolEntry[]>>({})
   const [isRunning, setIsRunning] = useState(false)
   const [nextRunAt, setNextRunAt] = useState<number | null>(null)
-  const [payoutRate, setPayoutRate] = useState<string>('')
   const [, setTick] = useState(0)  // triggers 1-second re-renders for countdowns
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -100,11 +101,9 @@ export default function AutoHomePage() {
   const catInfo = autoInfo[activeCategory]
   const symbols: SymbolEntry[] = summaries[activeCategory] || []
 
-  const pr = parseFloat(payoutRate)
-  const validPayout = !isNaN(pr) && pr > 0 && pr <= 100
-
-  const getEvPerTrade = (top: TopStrategy): number | null => {
-    if (validPayout) return top.win_rate * (pr / 100) - (1 - top.win_rate)
+  const getEvPerTrade = (top: TopStrategy, symbolDisplay: string): number | null => {
+    const pr = parseFloat(payoutRates[symbolDisplay] ?? '')
+    if (!isNaN(pr) && pr > 0 && pr <= 100) return top.win_rate * (pr / 100) - (1 - top.win_rate)
     if (top.expected_value != null && top.total_trades > 0) return top.expected_value / top.total_trades
     return null
   }
@@ -112,8 +111,8 @@ export default function AutoHomePage() {
   // Sort by hourly EV (accounts for trade frequency across timeframes),
   // falling back to ev_per_trade only when hourly_ev is unavailable.
   const sorted = [...symbols].sort((a, b) => {
-    const keyA = a.top_strategy ? (a.top_strategy.hourly_ev ?? getEvPerTrade(a.top_strategy) ?? -999) : -999
-    const keyB = b.top_strategy ? (b.top_strategy.hourly_ev ?? getEvPerTrade(b.top_strategy) ?? -999) : -999
+    const keyA = a.top_strategy ? (a.top_strategy.hourly_ev ?? getEvPerTrade(a.top_strategy, a.symbol_display) ?? -999) : -999
+    const keyB = b.top_strategy ? (b.top_strategy.hourly_ev ?? getEvPerTrade(b.top_strategy, b.symbol_display) ?? -999) : -999
     return keyB - keyA
   })
 
@@ -156,30 +155,6 @@ export default function AutoHomePage() {
           </div>
         </div>
 
-        {/* Payout input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b' }}>ペイアウト率</span>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            background: '#0f172a', border: `1px solid ${validPayout ? '#6d28d9' : '#334155'}`,
-            borderRadius: '10px', padding: '4px 10px',
-          }}>
-            <input
-              type="number" min={1} max={99} placeholder="—"
-              value={payoutRate}
-              onChange={e => setPayoutRate(e.target.value)}
-              style={{
-                width: '40px', background: 'none', border: 'none',
-                color: validPayout ? '#c4b5fd' : '#94a3b8',
-                fontSize: '13px', fontWeight: '700', padding: 0, outline: 'none', textAlign: 'center',
-              }}
-            />
-            <span style={{ fontSize: '12px', color: '#64748b' }}>%</span>
-          </div>
-          {validPayout && (
-            <span style={{ fontSize: '11px', color: '#a78bfa' }}>✓ 適用中</span>
-          )}
-        </div>
       </div>
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>
@@ -227,10 +202,12 @@ export default function AutoHomePage() {
         {/* Results leaderboard */}
         {sorted.map((sym, idx) => {
           const top = sym.top_strategy
-          const evPerTrade = top ? getEvPerTrade(top) : null
+          const evPerTrade = top ? getEvPerTrade(top, sym.symbol_display) : null
           const fixedDiscount = top ? computeFixedDiscount(top.win_rate, top.total_trades) : null
           const consEv = fixedDiscount != null && evPerTrade != null ? evPerTrade - fixedDiscount : null
           const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
+          const prVal = payoutRates[sym.symbol_display] ?? ''
+          const validPr = !isNaN(parseFloat(prVal)) && parseFloat(prVal) > 0
 
           return (
             <div
@@ -302,6 +279,24 @@ export default function AutoHomePage() {
                       )}
                     </div>
                   )}
+
+                  {/* Per-symbol payout input */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
+                    <span style={{ fontSize: '10px', color: '#475569' }}>PO</span>
+                    <input
+                      type="number" min={1} max={99} placeholder="—"
+                      value={prVal}
+                      onChange={e => setPayoutRate(sym.symbol_display, e.target.value)}
+                      style={{
+                        width: '34px', background: 'none', border: 'none',
+                        borderBottom: `1px solid ${validPr ? '#6d28d9' : '#334155'}`,
+                        color: validPr ? '#c4b5fd' : '#64748b',
+                        fontSize: '11px', fontWeight: '700', padding: '0 2px',
+                        outline: 'none', textAlign: 'center',
+                      }}
+                    />
+                    <span style={{ fontSize: '10px', color: '#475569' }}>%</span>
+                  </div>
                 </div>
 
                 {top ? (

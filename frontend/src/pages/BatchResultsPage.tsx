@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { getBatchResults, getBatch } from '../api'
 import type { BatchResultItem, BatchResultsResponse, SimulationStatus } from '../types'
 import { computeFixedDiscount } from '../utils/ev'
+import { useStore } from '../store/useStore'
 
 const TF_LABELS: Record<string, string> = { '1m': '1分足', '5m': '5分足', '15m': '15分足', '1h': '1時間足' }
 const BATCH_TFS = ['1m', '5m', '15m', '1h']
@@ -113,19 +114,20 @@ function StrategyCard({ item, onClick, payoutRate }: { item: BatchResultItem; on
 export default function BatchResultsPage() {
   const { batchId } = useParams<{ batchId: string }>()
   const navigate = useNavigate()
+  const { payoutRates, setPayoutRate } = useStore()
   const [data, setData] = useState<BatchResultsResponse | null>(null)
   const [activeTf, setActiveTf] = useState('1m')
   const [minTrades, setMinTrades] = useState(10)
   const [minWinRate, setMinWinRate] = useState(55)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [payoutRate, setPayoutRate] = useState<string>('')
   const [refinementBatchId, setRefinementBatchId] = useState<string | null>(null)
   const [refinementData, setRefinementData] = useState<BatchResultsResponse | null>(null)
   const [refinementDone, setRefinementDone] = useState(false)
   const [refinementSims, setRefinementSims] = useState<SimulationStatus[]>([])
   const refinementRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const payoutRate = payoutRates[data?.symbol_display ?? ''] ?? ''
   const prNum = parseFloat(payoutRate)
   const validPayout = !isNaN(prNum) && prNum > 0 && prNum <= 100
   const activePayout = validPayout ? prNum : null
@@ -204,7 +206,7 @@ export default function BatchResultsPage() {
             <input
               type="number" min={1} max={99} placeholder="—"
               value={payoutRate}
-              onChange={e => setPayoutRate(e.target.value)}
+              onChange={e => setPayoutRate(data?.symbol_display ?? '', e.target.value)}
               style={{ width: '40px', background: 'none', border: 'none', color: validPayout ? '#c4b5fd' : '#94a3b8', fontSize: '13px', fontWeight: '700', padding: 0, outline: 'none', textAlign: 'center' }}
             />
             <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>

@@ -15,6 +15,9 @@ interface SimStore {
   results: StrategyResult[]
   selectedStrategy: StrategyResult | null
 
+  // Payout rates (persisted) — keyed by symbol_display e.g. "BTC/USDT"
+  payoutRates: Record<string, string>
+
   // Actions
   setSymbol: (key: string, display: string) => void
   setTimeframe: (tf: string) => void
@@ -26,9 +29,14 @@ interface SimStore {
   updateSimStatus: (sim: SimulationStatus) => void
   setResults: (results: StrategyResult[]) => void
   setSelectedStrategy: (s: StrategyResult | null) => void
+  setPayoutRate: (symbolDisplay: string, rate: string) => void
 }
 
 const ALL_INDICATORS = ['SMA_CROSS', 'EMA_CROSS', 'RSI', 'MACD', 'BB', 'STOCH', 'RSI_MA', 'MACD_BB']
+
+function loadPayoutRates(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem('payoutRates') || '{}') } catch { return {} }
+}
 
 export const useStore = create<SimStore>((set) => ({
   symbol: 'BTCUSDT',
@@ -41,6 +49,8 @@ export const useStore = create<SimStore>((set) => ({
   currentSim: null,
   results: [],
   selectedStrategy: null,
+
+  payoutRates: loadPayoutRates(),
 
   setSymbol: (key, display) => set({ symbol: key, symbolDisplay: display }),
   setTimeframe: (tf) => set({ timeframe: tf }),
@@ -56,4 +66,9 @@ export const useStore = create<SimStore>((set) => ({
   updateSimStatus: (sim) => set({ currentSim: sim }),
   setResults: (results) => set({ results }),
   setSelectedStrategy: (s) => set({ selectedStrategy: s }),
+  setPayoutRate: (symbolDisplay, rate) => set((state) => {
+    const next = { ...state.payoutRates, [symbolDisplay]: rate }
+    try { localStorage.setItem('payoutRates', JSON.stringify(next)) } catch { /* ignore */ }
+    return { payoutRates: next }
+  }),
 }))

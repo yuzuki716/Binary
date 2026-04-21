@@ -15,7 +15,7 @@ const FAMILY_LABELS: Record<string, string> = {
 export default function ResultsPage() {
   const { simId } = useParams<{ simId: string }>()
   const navigate = useNavigate()
-  const { setSelectedStrategy } = useStore()
+  const { setSelectedStrategy, payoutRates, setPayoutRate } = useStore()
 
   const [sim, setSim] = useState<SimulationStatus | null>(null)
   const [results, setResults] = useState<StrategyResult[]>([])
@@ -26,7 +26,6 @@ export default function ResultsPage() {
   const [minTrades, setMinTrades] = useState(10)
   const [minWinRate, setMinWinRate] = useState(55)
   const [sort, setSort] = useState('expected_value')
-  const [payoutRate, setPayoutRate] = useState<string>('')
 
   const load = useCallback(async (p = 1) => {
     if (!simId) return
@@ -52,6 +51,7 @@ export default function ResultsPage() {
     load(1)
   }, [load])
 
+  const payoutRate = payoutRates[sim?.symbol_display ?? ''] ?? ''
   const pr = parseFloat(payoutRate)
   const validPayout = !isNaN(pr) && pr > 0 && pr <= 100
 
@@ -110,7 +110,7 @@ export default function ResultsPage() {
             <input
               type="number" min={1} max={99} placeholder="—"
               value={payoutRate}
-              onChange={e => setPayoutRate(e.target.value)}
+              onChange={e => setPayoutRate(sim?.symbol_display ?? '', e.target.value)}
               style={{ width: '36px', background: 'none', border: 'none', color: validPayout ? '#c4b5fd' : '#94a3b8', fontSize: '12px', fontWeight: '700', padding: 0, outline: 'none', textAlign: 'center' }}
             />
             <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>
