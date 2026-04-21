@@ -24,12 +24,38 @@ export default function ProgressPage() {
   useEffect(() => {
     if (!simId) return
 
+    let pollInterval: ReturnType<typeof setInterval> | null = null
+    let noMsgTimer: ReturnType<typeof setTimeout> | null = null
+
+    const startPolling = () => {
+      if (pollInterval) return
+      pollInterval = setInterval(async () => {
+        try {
+          const sim = await getSimulation(simId!)
+          updateSimStatus(sim)
+          setPct(sim.progress_pct)
+          if (sim.status === 'COMPLETED') {
+            clearInterval(pollInterval!); pollInterval = null
+            navigate(`/results/${simId}`)
+          } else if (sim.status === 'FAILED') {
+            clearInterval(pollInterval!); pollInterval = null
+            setError(sim.error_message || 'シミュレーション失敗')
+          }
+        } catch (_) {}
+      }, 2000)
+    }
+
     const ws = new WebSocket(`${getWsBase()}/ws/progress/${simId}`)
     wsRef.current = ws
 
+    // If no message arrives within 8 seconds, fall back to HTTP polling
+    noMsgTimer = setTimeout(startPolling, 8000)
+
     ws.onmessage = (e) => {
+      if (noMsgTimer) { clearTimeout(noMsgTimer); noMsgTimer = null }
       const msg = JSON.parse(e.data)
       if (msg.type === 'progress') {
+        if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
         setPct(msg.percent)
         setLogs((prev) => [...prev.slice(-50), { message: msg.message, pct: msg.percent, ts: Date.now() }])
       } else if (msg.type === 'complete') {
@@ -37,30 +63,16 @@ export default function ProgressPage() {
         navigate(`/results/${simId}`)
       } else if (msg.type === 'error') {
         setError(msg.message)
+        startPolling()
       }
     }
 
-    ws.onerror = () => {
-      // Fallback: poll simulation status
-      const poll = setInterval(async () => {
-        try {
-          const sim = await getSimulation(simId!)
-          updateSimStatus(sim)
-          setPct(sim.progress_pct)
-          if (sim.status === 'COMPLETED') {
-            clearInterval(poll)
-            navigate(`/results/${simId}`)
-          } else if (sim.status === 'FAILED') {
-            clearInterval(poll)
-            setError(sim.error_message || 'シミュレーション失敗')
-          }
-        } catch (_) {}
-      }, 2000)
-      return () => clearInterval(poll)
-    }
+    ws.onerror = () => { startPolling() }
 
     return () => {
       ws.close()
+      if (noMsgTimer) clearTimeout(noMsgTimer)
+      if (pollInterval) clearInterval(pollInterval)
     }
   }, [simId])
 

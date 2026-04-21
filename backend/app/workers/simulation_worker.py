@@ -54,6 +54,14 @@ async def run_simulation(sim_id: str, config: SimulationCreate):
     from app.services.backtest_engine import run_backtest
     from sqlalchemy import update, select, desc, func
 
+    # Notify immediately before semaphore so the progress page doesn't show blank
+    _pre_queue = get_progress_queue(sim_id)
+    if _pre_queue:
+        try:
+            _pre_queue.put_nowait({"type": "progress", "percent": 0, "message": "分析スロット待機中..."})
+        except asyncio.QueueFull:
+            pass
+
     async with _get_semaphore():
         async with AsyncSessionLocal() as db:
             queue = get_progress_queue(sim_id)
