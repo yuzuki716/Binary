@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchAutoLatest } from '../api'
+import { fetchAutoLatest, sendNotifyTest } from '../api'
 import client from '../api/client'
 import type { AutoCategoryInfo } from '../types'
 import { computeFixedDiscount } from '../utils/ev'
@@ -64,6 +64,8 @@ export default function AutoHomePage() {
   const [nextRunAt, setNextRunAt] = useState<number | null>(null)
   const [, setTick] = useState(0)  // triggers 1-second re-renders for countdowns
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [notifyStatus, setNotifyStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle')
+  const [notifyError, setNotifyError] = useState('')
 
   useEffect(() => {
     const t = setInterval(() => setTick(v => v + 1), 1000)
@@ -96,6 +98,24 @@ export default function AutoHomePage() {
     pollRef.current = setInterval(loadAll, 15000)
     return () => clearInterval(pollRef.current!)
   }, [])
+
+  const handleNotifyTest = async () => {
+    setNotifyStatus('sending')
+    setNotifyError('')
+    try {
+      const res = await sendNotifyTest()
+      if (res.ok) {
+        setNotifyStatus('ok')
+      } else {
+        setNotifyStatus('error')
+        setNotifyError(res.error ?? '不明なエラー')
+      }
+    } catch (e: unknown) {
+      setNotifyStatus('error')
+      setNotifyError(e instanceof Error ? e.message : '通信エラー')
+    }
+    setTimeout(() => setNotifyStatus('idle'), 4000)
+  }
 
   const catInfo = autoInfo[activeCategory]
   const symbols: SymbolEntry[] = summaries[activeCategory] || []
@@ -137,7 +157,7 @@ export default function AutoHomePage() {
               30分ごとに自動分析
             </p>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
             {isRunning ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <div style={{
@@ -158,9 +178,29 @@ export default function AutoHomePage() {
                 )}
               </div>
             ) : null}
+
+            {/* Discord test button */}
+            <button
+              onClick={handleNotifyTest}
+              disabled={notifyStatus === 'sending'}
+              style={{
+                padding: '4px 10px', borderRadius: '6px', border: '1px solid',
+                borderColor: notifyStatus === 'ok' ? '#16a34a' : notifyStatus === 'error' ? '#dc2626' : '#334155',
+                background: notifyStatus === 'ok' ? '#052e16' : notifyStatus === 'error' ? '#1e0a0a' : '#1e293b',
+                color: notifyStatus === 'ok' ? '#4ade80' : notifyStatus === 'error' ? '#f87171' : '#94a3b8',
+                fontSize: '11px', fontWeight: '600', cursor: notifyStatus === 'sending' ? 'default' : 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {notifyStatus === 'sending' ? '送信中...' : notifyStatus === 'ok' ? '✓ 送信成功' : notifyStatus === 'error' ? '✗ 失敗' : '🔔 通知テスト'}
+            </button>
+            {notifyStatus === 'error' && notifyError && (
+              <div style={{ fontSize: '10px', color: '#f87171', maxWidth: '160px', textAlign: 'right' }}>
+                {notifyError}
+              </div>
+            )}
           </div>
         </div>
-
       </div>
 
       <div style={{ padding: '16px', maxWidth: '480px', margin: '0 auto' }}>

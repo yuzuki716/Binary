@@ -77,3 +77,8 @@ export async function savePayoutRate(symbolDisplay: string, payoutPct: number): 
     params: { payout_pct: payoutPct },
   })
 }
+
+export async function sendNotifyTest(): Promise<{ ok: boolean; error?: string }> {
+  const res = await client.post<{ ok: boolean; error?: string }>('/auto/notify-test')
+  return res.data
+}
