@@ -47,3 +47,17 @@ async def set_payout_rate(symbol_display: str, payout_pct: int, db: AsyncSession
         db.add(SymbolPayoutRate(symbol_display=symbol_display, payout_pct=payout_pct))
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/payout/bulk")
+async def bulk_set_payout_rates(rates: dict[str, int], db: AsyncSession = Depends(get_db)):
+    """Bulk update payout rates. Body: {"EUR/USD": 84, "GBP/JPY": 84, ...}"""
+    for symbol_display, payout_pct in rates.items():
+        existing = await db.get(SymbolPayoutRate, symbol_display)
+        if existing:
+            if existing.payout_pct != payout_pct:
+                existing.payout_pct = payout_pct
+        else:
+            db.add(SymbolPayoutRate(symbol_display=symbol_display, payout_pct=payout_pct))
+    await db.commit()
+    return {"ok": True, "updated": len(rates)}
