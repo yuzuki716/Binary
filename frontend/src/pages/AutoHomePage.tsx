@@ -105,7 +105,7 @@ export default function AutoHomePage() {
   const handleBulkApply = async () => {
     const rates: Record<string, number> = {}
     for (const line of bulkText.split('\n')) {
-      const m = line.trim().match(/^([A-Z]{3}\/[A-Z]{3})\s+(\d+)/)
+      const m = line.trim().match(/^([A-Za-z][A-Za-z0-9/]*)\s+(\d+)/)
       if (m) rates[m[1]] = parseInt(m[2], 10)
     }
     if (Object.keys(rates).length === 0) return
