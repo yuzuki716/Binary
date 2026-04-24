@@ -15,7 +15,7 @@ class Base(DeclarativeBase):
 
 
 async def init_db():
-    from app.models.orm import Simulation, StrategyResult, AutoLatest, SymbolPayoutRate  # noqa: F401
+    from app.models.orm import Simulation, StrategyResult, AutoLatest, SymbolPayoutRate, SignalAlert  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         # Migrations: add new columns if missing

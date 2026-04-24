@@ -190,11 +190,14 @@ def _timeframe_ms(tf: str) -> int:
     return mapping.get(tf, 3600000)
 
 
-async def fetch_ohlcv(symbol_key: str, timeframe: str, limit: int = 2000) -> pd.DataFrame:
-    """Fetch OHLCV data. Returns DataFrame with columns: timestamp, open, high, low, close, volume"""
-    cached = _cache_get(symbol_key, timeframe)
-    if cached is not None and len(cached) >= limit:
-        return cached.tail(limit).reset_index(drop=True)
+async def fetch_ohlcv(symbol_key: str, timeframe: str, limit: int = 2000, fresh: bool = False) -> pd.DataFrame:
+    """Fetch OHLCV data. Returns DataFrame with columns: timestamp, open, high, low, close, volume.
+    fresh=True bypasses cache (used by the real-time signal monitor).
+    """
+    if not fresh:
+        cached = _cache_get(symbol_key, timeframe)
+        if cached is not None and len(cached) >= limit:
+            return cached.tail(limit).reset_index(drop=True)
 
     info = SYMBOL_MAP.get(symbol_key.upper())
     if not info:

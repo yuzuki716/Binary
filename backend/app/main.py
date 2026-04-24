@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.database import init_db
 from app.api import symbols, simulations, results, charts, websocket, batch, auto
 from app.services.auto_scheduler import start_scheduler, stop_scheduler, get_scheduler_status
+from app.services.signal_monitor import start_monitor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,6 +24,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
     await start_scheduler()
+    await start_monitor()
     yield
     stop_scheduler()
     logger.info("Shutting down...")

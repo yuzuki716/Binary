@@ -35,6 +35,20 @@ class Simulation(Base):
     completed_at = Column(DateTime, nullable=True)
 
 
+class SignalAlert(Base):
+    """Records real-time signals sent to Discord to prevent duplicate notifications."""
+    __tablename__ = "signal_alerts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol_display = Column(String, nullable=False, index=True)
+    timeframe = Column(String, nullable=False)
+    trade_duration = Column(Integer, nullable=False)
+    strategy_name = Column(String, nullable=False)
+    signal = Column(String, nullable=False)   # "CALL" or "PUT"
+    bar_timestamp = Column(Integer, nullable=False)   # Unix timestamp of the signaling bar
+    sent_at = Column(DateTime, server_default=func.now())
+
+
 class SymbolPayoutRate(Base):
     """Stores user-entered payout rate (%) per symbol_display."""
     __tablename__ = "symbol_payout_rates"
