@@ -1,14 +1,17 @@
 """
 Real-time signal monitor.
-Runs every 60 seconds. For each strategy with consEv > 0 (using user-entered payout rates),
-fetches fresh OHLCV data and checks the last completed bar for signals.
+
+Polls every 5 seconds. For each timeframe, fires a signal check when
+~10 seconds remain before bar close (e.g. :50 on a 1m bar).
+Uses iloc[-1] (the forming bar) so the notification arrives before the bar
+closes — giving the user time to enter the trade at bar close.
 
 Data sources:
 - Forex  → Twelve Data REST API (real-time, ~1-2s delay)
 - Crypto → Binance via ccxt (unchanged)
 
 Credit budget: Twelve Data free plan = 800 credits/day.
-Only call when a new bar is due (timeframe-aware) to stay within budget.
+Only fetch when the bar-close window fires.
 """
 import asyncio
 import logging
@@ -21,7 +24,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-MONITOR_INTERVAL = 60  # seconds
+MONITOR_INTERVAL = 5   # poll every 5 seconds
+_PRE_CLOSE_WINDOW = (8, 18)  # fire when [8, 18) seconds remain before bar close
 
 _REFERENCE_PAYOUT = 0.80
 _Z = 0.674
@@ -50,12 +54,17 @@ def _fixed_discount(win_rate: float, total_trades: int) -> float | None:
     return max(0.0, ev_raw - ev_cons)
 
 
-def _bar_is_due(timeframe: str) -> bool:
-    """True if a bar of this timeframe closed within the last 90 seconds."""
+def _seconds_until_bar_close(timeframe: str) -> int:
+    """Seconds remaining until the current bar of this timeframe closes."""
     interval = _TF_SECONDS.get(timeframe, 60)
-    if interval <= 60:
-        return True  # 1m bars: always check (crypto only)
-    return (int(time.time()) % interval) < 90
+    return interval - (int(time.time()) % interval)
+
+
+def _in_pre_close_window(timeframe: str) -> bool:
+    """True when we're in the [8, 18) second window before bar close."""
+    lo, hi = _PRE_CLOSE_WINDOW
+    secs = _seconds_until_bar_close(timeframe)
+    return lo <= secs < hi
 
 
 def _use_credit() -> bool:
@@ -77,7 +86,8 @@ async def start_monitor() -> None:
     if _monitor_task and not _monitor_task.done():
         return
     _monitor_task = asyncio.create_task(_monitor_loop())
-    logger.info("Signal monitor started (interval=%ds)", MONITOR_INTERVAL)
+    logger.info("Signal monitor started (interval=%ds, pre-close window=%s-%ss)",
+                MONITOR_INTERVAL, *_PRE_CLOSE_WINDOW)
 
 
 async def _monitor_loop() -> None:
@@ -86,7 +96,8 @@ async def _monitor_loop() -> None:
         try:
             await _check_signals()
             check_count += 1
-            if check_count % 1440 == 0:
+            # Cleanup old alerts roughly once a day (every 1440 * 5s ≈ 2 hours → use larger divisor)
+            if check_count % 17280 == 0:  # ~24h at 5s interval
                 await _cleanup_old_alerts()
         except Exception:
             logger.exception("Signal monitor check failed")
@@ -177,10 +188,10 @@ async def _check_signals() -> None:
         return
 
     for info in best.values():
-        # For forex: only fetch when a new bar is due (saves Twelve Data credits)
-        if info["is_forex"] and not _bar_is_due(info["timeframe"]):
+        # Only fetch when we're in the pre-close window for this timeframe
+        if not _in_pre_close_window(info["timeframe"]):
             continue
-        # For forex: check daily credit budget
+        # Forex: check daily credit budget
         if info["is_forex"] and not _use_credit():
             break
 
@@ -188,7 +199,7 @@ async def _check_signals() -> None:
             await _check_one(info)
         except Exception:
             logger.exception("Error checking signal for %s %s", info["symbol_display"], info["timeframe"])
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.3)
 
 
 async def _check_one(info: dict) -> None:
@@ -210,16 +221,18 @@ async def _check_one(info: dict) -> None:
         return
 
     loop = asyncio.get_event_loop()
+    # Use iloc[-1]: the forming bar whose signal we're previewing before close
     signals = await loop.run_in_executor(_executor, compute_signals, df, strategies[0])
 
-    if signals is None or len(signals) < 2:
+    if signals is None or len(signals) < 1:
         return
 
-    sig_val = int(signals.iloc[-2])
+    sig_val = int(signals.iloc[-1])
     if sig_val == 0:
         return
 
-    bar_ts = int(df["timestamp"].iloc[-2])
+    # Deduplicate per bar: use the timestamp of the current (forming) bar
+    bar_ts = int(df["timestamp"].iloc[-1])
     signal_str = "CALL" if sig_val == 1 else "PUT"
 
     async with AsyncSessionLocal() as db:
@@ -243,12 +256,14 @@ async def _check_one(info: dict) -> None:
         ))
         await db.commit()
 
-    await _send_alert(info, signal_str)
-    logger.info("Signal alert: %s %s %sm → %s (consEv=%.3f)",
-                info["symbol_display"], info["timeframe"], info["trade_duration"], signal_str, info["cons_ev"])
+    secs = _seconds_until_bar_close(info["timeframe"])
+    await _send_alert(info, signal_str, secs)
+    logger.info("Pre-close signal: %s %s %sm → %s (consEv=%.3f, %ds to close)",
+                info["symbol_display"], info["timeframe"], info["trade_duration"],
+                signal_str, info["cons_ev"], secs)
 
 
-async def _send_alert(info: dict, signal: str) -> None:
+async def _send_alert(info: dict, signal: str, secs_to_close: int) -> None:
     from app.core.config import settings
     webhook_url = settings.discord_webhook_url
     if not webhook_url:
@@ -259,7 +274,7 @@ async def _send_alert(info: dict, signal: str) -> None:
     po_pct = round(info["payout"] * 100)
 
     content = (
-        f"{signal_emoji} **リアルタイムシグナル**\n"
+        f"{signal_emoji} **シグナル検出 ― あと約{secs_to_close}秒でエントリー**\n"
         f"**{info['symbol_display']}** | {tf} | {info['trade_duration']}分取引 (PO {po_pct}%)\n"
         f"方向: **{'CALL ↑' if signal == 'CALL' else 'PUT ↓'}**\n"
         f"戦略: {info['strategy_name']}\n"
