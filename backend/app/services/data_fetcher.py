@@ -27,6 +27,8 @@ SYMBOL_MAP = {
     "EURGBP": {"ticker": "EURGBP=X", "source": "yfinance", "display": "EUR/GBP", "category": "forex"},
     "AUDNZD": {"ticker": "AUDNZD=X", "source": "yfinance", "display": "AUD/NZD", "category": "forex"},
     "GBPCHF": {"ticker": "GBPCHF=X", "source": "yfinance", "display": "GBP/CHF", "category": "forex"},
+    "EURCAD": {"ticker": "EURCAD=X", "source": "yfinance", "display": "EUR/CAD", "category": "forex"},
+    "USDCNH": {"ticker": "USDCNH=X", "source": "yfinance", "display": "USD/CNH", "category": "forex"},
     # Crypto (Binance.US - works from US-based servers like Render)
     "BTCUSDT":  {"ticker": "BTC/USDT",  "source": "ccxt", "display": "Bitcoin",  "category": "crypto"},
     "DOGEUSDT": {"ticker": "DOGE/USDT", "source": "ccxt", "display": "Dogecoin", "category": "crypto"},
@@ -195,7 +197,7 @@ _TD_SYMBOL_MAP = {
     "EURUSD": "EUR/USD", "USDJPY": "USD/JPY", "GBPUSD": "GBP/USD",
     "USDCHF": "USD/CHF", "GBPJPY": "GBP/JPY", "AUDJPY": "AUD/JPY",
     "NZDJPY": "NZD/JPY", "EURGBP": "EUR/GBP", "AUDNZD": "AUD/NZD",
-    "GBPCHF": "GBP/CHF",
+    "GBPCHF": "GBP/CHF", "EURCAD": "EUR/CAD", "USDCNH": "USD/CNH",
 }
 _TD_TF_MAP = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "1h"}
 

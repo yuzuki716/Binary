@@ -63,6 +63,8 @@ CATEGORY_SYMBOLS: dict[str, list[dict]] = {
         {"key": "USDCHF", "display": "USD/CHF"},
         {"key": "GBPUSD", "display": "GBP/USD"},
         {"key": "GBPCHF", "display": "GBP/CHF"},
+        {"key": "EURCAD", "display": "EUR/CAD"},
+        {"key": "USDCNH", "display": "USD/CNH"},
     ],
 }
 
