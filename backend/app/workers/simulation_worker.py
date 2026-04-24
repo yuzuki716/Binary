@@ -18,17 +18,26 @@ logger = logging.getLogger(__name__)
 _progress_queues: dict = {}
 _executor = ThreadPoolExecutor(max_workers=4)
 
-# Max 3 simulations run concurrently to stay within Render free-tier limits
-_semaphore: Optional[asyncio.Semaphore] = None
+# Auto-analysis sims: 2 slots. Manual sims: 1 dedicated slot.
+# Total concurrent = 3, within Render free-tier limits.
+_auto_semaphore: Optional[asyncio.Semaphore] = None
+_manual_semaphore: Optional[asyncio.Semaphore] = None
 
 BARS_PER_HOUR = {"1m": 60, "5m": 12, "15m": 4, "1h": 1, "4h": 0.25, "1d": 1/24}
 
 
-def _get_semaphore() -> asyncio.Semaphore:
-    global _semaphore
-    if _semaphore is None:
-        _semaphore = asyncio.Semaphore(3)
-    return _semaphore
+def _get_auto_semaphore() -> asyncio.Semaphore:
+    global _auto_semaphore
+    if _auto_semaphore is None:
+        _auto_semaphore = asyncio.Semaphore(2)
+    return _auto_semaphore
+
+
+def _get_manual_semaphore() -> asyncio.Semaphore:
+    global _manual_semaphore
+    if _manual_semaphore is None:
+        _manual_semaphore = asyncio.Semaphore(1)
+    return _manual_semaphore
 
 
 def get_progress_queue(sim_id: str):
@@ -45,14 +54,19 @@ def remove_progress_queue(sim_id: str):
     _progress_queues.pop(sim_id, None)
 
 
-async def run_simulation(sim_id: str, config: SimulationCreate):
-    """Main simulation coroutine. Creates its own DB session and waits for a semaphore slot."""
+async def run_simulation(sim_id: str, config: SimulationCreate, priority: bool = False):
+    """Main simulation coroutine. Creates its own DB session and waits for a semaphore slot.
+
+    priority=True (manual sims) uses a dedicated semaphore so auto-analysis never blocks them.
+    """
     from app.core.database import AsyncSessionLocal
     from app.models.orm import Simulation, StrategyResult
     from app.services.data_fetcher import fetch_ohlcv
     from app.services.indicator_engine import get_all_strategies, compute_signals
     from app.services.backtest_engine import run_backtest
     from sqlalchemy import update, select, desc, func
+
+    semaphore = _get_manual_semaphore() if priority else _get_auto_semaphore()
 
     # Notify immediately before semaphore so the progress page doesn't show blank
     _pre_queue = get_progress_queue(sim_id)
@@ -62,7 +76,7 @@ async def run_simulation(sim_id: str, config: SimulationCreate):
         except asyncio.QueueFull:
             pass
 
-    async with _get_semaphore():
+    async with semaphore:
         async with AsyncSessionLocal() as db:
             queue = get_progress_queue(sim_id)
 
