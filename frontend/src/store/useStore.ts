@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { SimulationStatus, StrategyResult } from '../types'
-import { savePayoutRate as apiSavePayoutRate } from '../api'
+import { savePayoutRate as apiSavePayoutRate, bulkSavePayoutRates as apiBulkSave } from '../api'
 
 interface SimStore {
   // Setup state
@@ -31,6 +31,7 @@ interface SimStore {
   setResults: (results: StrategyResult[]) => void
   setSelectedStrategy: (s: StrategyResult | null) => void
   setPayoutRate: (symbolDisplay: string, rate: string) => void
+  bulkSetPayoutRates: (rates: Record<string, number>) => void
 }
 
 const ALL_INDICATORS = ['SMA_CROSS', 'EMA_CROSS', 'RSI', 'MACD', 'BB', 'STOCH', 'RSI_MA', 'MACD_BB']
@@ -75,6 +76,15 @@ export const useStore = create<SimStore>((set) => ({
     if (!isNaN(pct) && pct > 0) {
       apiSavePayoutRate(symbolDisplay, pct).catch(() => { /* best effort */ })
     }
+    return { payoutRates: next }
+  }),
+  bulkSetPayoutRates: (rates) => set((state) => {
+    const next = { ...state.payoutRates }
+    for (const [sym, pct] of Object.entries(rates)) {
+      next[sym] = String(pct)
+    }
+    try { localStorage.setItem('payoutRates', JSON.stringify(next)) } catch { /* ignore */ }
+    apiBulkSave(rates).catch(() => { /* best effort */ })
     return { payoutRates: next }
   }),
 }))

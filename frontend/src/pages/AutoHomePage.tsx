@@ -56,7 +56,7 @@ interface SymbolEntry {
 
 export default function AutoHomePage() {
   const navigate = useNavigate()
-  const { payoutRates, setPayoutRate } = useStore()
+  const { payoutRates, setPayoutRate, bulkSetPayoutRates } = useStore()
   const [activeCategory, setActiveCategory] = useState('crypto')
   const [autoInfo, setAutoInfo] = useState<Record<string, AutoCategoryInfo>>({})
   const [summaries, setSummaries] = useState<Record<string, SymbolEntry[]>>({})
@@ -66,6 +66,9 @@ export default function AutoHomePage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [notifyStatus, setNotifyStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle')
   const [notifyError, setNotifyError] = useState('')
+  const [showBulkModal, setShowBulkModal] = useState(false)
+  const [bulkText, setBulkText] = useState('')
+  const [bulkStatus, setBulkStatus] = useState<'idle' | 'applying' | 'ok' | 'error'>('idle')
 
   useEffect(() => {
     const t = setInterval(() => setTick(v => v + 1), 1000)
@@ -98,6 +101,23 @@ export default function AutoHomePage() {
     pollRef.current = setInterval(loadAll, 15000)
     return () => clearInterval(pollRef.current!)
   }, [])
+
+  const handleBulkApply = async () => {
+    const rates: Record<string, number> = {}
+    for (const line of bulkText.split('\n')) {
+      const m = line.trim().match(/^([A-Z]{3}\/[A-Z]{3})\s+(\d+)/)
+      if (m) rates[m[1]] = parseInt(m[2], 10)
+    }
+    if (Object.keys(rates).length === 0) return
+    setBulkStatus('applying')
+    try {
+      bulkSetPayoutRates(rates)
+      setBulkStatus('ok')
+      setTimeout(() => { setShowBulkModal(false); setBulkStatus('idle'); setBulkText('') }, 1500)
+    } catch {
+      setBulkStatus('error')
+    }
+  }
 
   const handleNotifyTest = async () => {
     setNotifyStatus('sending')
@@ -178,6 +198,18 @@ export default function AutoHomePage() {
                 )}
               </div>
             ) : null}
+
+            {/* Bulk payout update button */}
+            <button
+              onClick={() => { setShowBulkModal(true); setBulkText('') }}
+              style={{
+                padding: '4px 10px', borderRadius: '6px',
+                border: '1px solid #334155', background: '#1e293b',
+                color: '#94a3b8', fontSize: '11px', fontWeight: '600', cursor: 'pointer',
+              }}
+            >
+              PO一括更新
+            </button>
 
             {/* Discord test button */}
             <button
@@ -397,6 +429,60 @@ export default function AutoHomePage() {
           </button>
         )}
       </div>
+      {/* Bulk payout modal */}
+      {showBulkModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+          zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowBulkModal(false) }}
+        >
+          <div style={{
+            width: '100%', maxWidth: '480px',
+            background: '#0f172a', borderRadius: '16px 16px 0 0',
+            border: '1px solid #1e293b', padding: '20px 16px 32px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#f1f5f9' }}>
+                PO一括更新
+              </h2>
+              <button onClick={() => setShowBulkModal(false)}
+                style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer', padding: '4px 8px' }}>
+                ✕
+              </button>
+            </div>
+            <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#64748b', lineHeight: '1.6' }}>
+              Claude に写真を送ると貼り付け用テキストを生成します。<br />
+              形式: <span style={{ color: '#94a3b8', fontFamily: 'monospace' }}>EUR/GBP 90</span>（1行1通貨ペア）
+            </p>
+            <textarea
+              value={bulkText}
+              onChange={e => setBulkText(e.target.value)}
+              placeholder={`EUR/GBP 90\nEUR/USD 84\nGBP/JPY 84\nAUD/JPY 84`}
+              rows={8}
+              style={{
+                width: '100%', background: '#1e293b', border: '1px solid #334155',
+                borderRadius: '8px', color: '#e2e8f0', fontSize: '14px',
+                padding: '10px 12px', resize: 'none', outline: 'none',
+                fontFamily: 'monospace', boxSizing: 'border-box', lineHeight: '1.8',
+              }}
+            />
+            <button
+              onClick={handleBulkApply}
+              disabled={bulkStatus === 'applying' || bulkText.trim() === ''}
+              style={{
+                marginTop: '12px', width: '100%', padding: '14px',
+                borderRadius: '10px', border: 'none', cursor: bulkText.trim() ? 'pointer' : 'default',
+                background: bulkStatus === 'ok' ? '#052e16' : bulkStatus === 'error' ? '#1e0a0a' : '#3b82f6',
+                color: bulkStatus === 'ok' ? '#4ade80' : bulkStatus === 'error' ? '#f87171' : '#fff',
+                fontSize: '15px', fontWeight: '700', transition: 'all 0.2s',
+              }}
+            >
+              {bulkStatus === 'applying' ? '更新中...' : bulkStatus === 'ok' ? '✓ 更新完了' : bulkStatus === 'error' ? '✗ エラー' : '適用する'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

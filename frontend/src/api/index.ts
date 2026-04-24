@@ -82,3 +82,8 @@ export async function sendNotifyTest(): Promise<{ ok: boolean; error?: string }>
   const res = await client.post<{ ok: boolean; error?: string }>('/auto/notify-test')
   return res.data
 }
+
+export async function bulkSavePayoutRates(rates: Record<string, number>): Promise<{ ok: boolean; updated: number }> {
+  const res = await client.post<{ ok: boolean; updated: number }>('/symbols/payout/bulk', rates)
+  return res.data
+}
