@@ -191,6 +191,15 @@ async def _check_signals() -> None:
         # Only fetch when we're in the pre-close window for this timeframe
         if not _in_pre_close_window(info["timeframe"]):
             continue
+        # For 5-min duration trades, only signal when bar close falls on a
+        # 5-minute boundary (:00, :05, :10, ... :55). This prevents entries
+        # like :01→:06 or :03→:08 on 1m charts where the user can't realistically
+        # target non-round expiry times.
+        if info["trade_duration"] == 5:
+            secs = _seconds_until_bar_close(info["timeframe"])
+            close_minute = ((int(time.time()) + secs) // 60) % 60
+            if close_minute % 5 != 0:
+                continue
         # Forex: check daily credit budget
         if info["is_forex"] and not _use_credit():
             break
