@@ -190,6 +190,85 @@ def _timeframe_ms(tf: str) -> int:
     return mapping.get(tf, 3600000)
 
 
+# Twelve Data symbol mapping (forex real-time monitoring)
+_TD_SYMBOL_MAP = {
+    "EURUSD": "EUR/USD", "USDJPY": "USD/JPY", "GBPUSD": "GBP/USD",
+    "USDCHF": "USD/CHF", "GBPJPY": "GBP/JPY", "AUDJPY": "AUD/JPY",
+    "NZDJPY": "NZD/JPY", "EURGBP": "EUR/GBP", "AUDNZD": "AUD/NZD",
+    "GBPCHF": "GBP/CHF",
+}
+_TD_TF_MAP = {"1m": "1min", "5m": "5min", "15m": "15min", "1h": "1h"}
+
+
+def _fetch_twelvedata(symbol_key: str, timeframe: str, limit: int) -> pd.DataFrame:
+    import requests
+    from app.core.config import settings
+
+    api_key = settings.twelve_data_api_key
+    if not api_key:
+        raise ValueError("TWELVE_DATA_API_KEY is not configured")
+
+    td_symbol = _TD_SYMBOL_MAP.get(symbol_key.upper())
+    if not td_symbol:
+        raise ValueError(f"Symbol {symbol_key} not mapped for Twelve Data")
+
+    interval = _TD_TF_MAP.get(timeframe)
+    if not interval:
+        raise ValueError(f"Timeframe {timeframe} not supported by Twelve Data")
+
+    resp = requests.get(
+        "https://api.twelvedata.com/time_series",
+        params={
+            "symbol": td_symbol,
+            "interval": interval,
+            "outputsize": min(limit, 5000),
+            "apikey": api_key,
+            "order": "ASC",
+        },
+        timeout=30,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+
+    if data.get("status") == "error":
+        raise ValueError(f"Twelve Data error: {data.get('message', 'unknown')}")
+
+    values = data.get("values", [])
+    if not values:
+        raise ValueError(f"Twelve Data returned no data for {td_symbol} {timeframe}")
+
+    df = pd.DataFrame(values)
+    df["timestamp"] = (pd.to_datetime(df["datetime"]).astype("int64") // 10**9).astype(int)
+    for col in ["open", "high", "low", "close"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce").fillna(0)
+
+    return df[["timestamp", "open", "high", "low", "close", "volume"]].tail(limit).reset_index(drop=True)
+
+
+async def fetch_ohlcv_realtime(symbol_key: str, timeframe: str, limit: int = 200) -> pd.DataFrame:
+    """Fetch fresh OHLCV for real-time signal monitoring.
+    Forex → Twelve Data (real-time, no delay).
+    Crypto → Binance via ccxt (unchanged).
+    """
+    info = SYMBOL_MAP.get(symbol_key.upper())
+    if not info:
+        raise ValueError(f"Unknown symbol: {symbol_key}")
+
+    loop = asyncio.get_event_loop()
+
+    if info["source"] == "yfinance":
+        return await asyncio.wait_for(
+            loop.run_in_executor(None, _fetch_twelvedata, symbol_key, timeframe, limit),
+            timeout=30,
+        )
+    else:
+        return await asyncio.wait_for(
+            loop.run_in_executor(None, _fetch_ccxt, info["ticker"], timeframe, limit),
+            timeout=30,
+        )
+
+
 async def fetch_ohlcv(symbol_key: str, timeframe: str, limit: int = 2000, fresh: bool = False) -> pd.DataFrame:
     """Fetch OHLCV data. Returns DataFrame with columns: timestamp, open, high, low, close, volume.
     fresh=True bypasses cache (used by the real-time signal monitor).

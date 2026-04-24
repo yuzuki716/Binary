@@ -30,8 +30,13 @@ from app.models.schemas import SimulationCreate
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-BATCH_TIMEFRAMES = ["1m", "5m", "15m", "1h"]
 BATCH_DURATIONS = [1, 5]
+
+# Crypto keeps 1m timeframe (Binance = real-time). Forex drops 1m (yfinance delay makes it unreliable).
+CATEGORY_TIMEFRAMES: dict[str, list[str]] = {
+    "crypto": ["1m", "5m", "15m", "1h"],
+    "forex":  ["5m", "15m", "1h"],
+}
 
 # Crypto binary options require 5+ minute trades
 CATEGORY_DURATIONS: dict[str, list[int]] = {
@@ -117,11 +122,15 @@ async def _create_and_launch_sims(
 async def create_batch(body: BatchCreate, db: AsyncSession = Depends(get_db)):
     batch_id = str(uuid.uuid4())
     sym = {"key": body.symbol, "display": body.symbol_display}
+    from app.services.data_fetcher import SYMBOL_MAP
+    category = SYMBOL_MAP.get(body.symbol.upper(), {}).get("category", "crypto")
+    timeframes = CATEGORY_TIMEFRAMES.get(category, ["5m", "15m", "1h"])
+    durations = CATEGORY_DURATIONS.get(category, BATCH_DURATIONS)
     await _create_and_launch_sims(
-        db, batch_id, [sym], BATCH_TIMEFRAMES, BATCH_DURATIONS,
+        db, batch_id, [sym], timeframes, durations,
         body.indicators, body.bar_limit,
     )
-    return {"batch_id": batch_id, "total": len(BATCH_TIMEFRAMES) * len(BATCH_DURATIONS)}
+    return {"batch_id": batch_id, "total": len(timeframes) * len(durations)}
 
 
 # ── Category batch (all symbols in group × 4 TF × 2 duration) ──────────────
@@ -137,13 +146,14 @@ async def create_category_batch(
         raise HTTPException(400, f"Unknown category: {category}. Use crypto/forex/indices.")
 
     batch_id = str(uuid.uuid4())
+    timeframes = CATEGORY_TIMEFRAMES.get(category, ["5m", "15m", "1h"])
     durations = CATEGORY_DURATIONS.get(category, BATCH_DURATIONS)
     await _create_and_launch_sims(
-        db, batch_id, symbols, BATCH_TIMEFRAMES, durations,
+        db, batch_id, symbols, timeframes, durations,
         body.indicators, body.bar_limit,
         payout_rates=body.payout_rates,
     )
-    total = len(symbols) * len(BATCH_TIMEFRAMES) * len(durations)
+    total = len(symbols) * len(timeframes) * len(durations)
     return {
         "batch_id": batch_id,
         "category": category,
@@ -209,8 +219,12 @@ async def get_batch_results(
     symbol = sims[0].symbol
     symbol_display = sims[0].symbol_display
 
+    from app.services.data_fetcher import SYMBOL_MAP as _SM
+    _cat = _SM.get(symbol.upper(), {}).get("category", "crypto")
+    _tfs = CATEGORY_TIMEFRAMES.get(_cat, ["5m", "15m", "1h"])
+
     results_by_tf: dict = {}
-    for tf in BATCH_TIMEFRAMES:
+    for tf in _tfs:
         results_by_tf[tf] = {}
         for dur in BATCH_DURATIONS:
             sim = next((s for s in sims if s.timeframe == tf and s.trade_duration == dur), None)

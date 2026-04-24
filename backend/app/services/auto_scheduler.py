@@ -43,7 +43,7 @@ async def _run_auto_analysis() -> None:
     try:
         # Lazy import to avoid circular dependency at module load time
         from app.api.batch import (
-            CATEGORY_SYMBOLS, BATCH_TIMEFRAMES, CATEGORY_DURATIONS,
+            CATEGORY_SYMBOLS, CATEGORY_TIMEFRAMES, CATEGORY_DURATIONS,
             _create_and_launch_sims,
         )
 
@@ -53,6 +53,7 @@ async def _run_auto_analysis() -> None:
         for category in ["crypto", "forex"]:
             batch_id = str(uuid.uuid4())
             symbols = CATEGORY_SYMBOLS[category]
+            timeframes = CATEGORY_TIMEFRAMES.get(category, ["5m", "15m", "1h"])
             durations = CATEGORY_DURATIONS.get(category, [1, 5])
 
             # Register for notification lookup; limit memory to last 40 entries
@@ -65,7 +66,7 @@ async def _run_auto_analysis() -> None:
                 async with AsyncSessionLocal() as db:
                     await _create_and_launch_sims(
                         db, batch_id, symbols,
-                        BATCH_TIMEFRAMES, durations,
+                        timeframes, durations,
                         ALL_INDICATORS, AUTO_BAR_LIMIT,
                     )
 
