@@ -24,8 +24,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-MONITOR_INTERVAL = 5   # poll every 5 seconds
-_PRE_CLOSE_WINDOW = (8, 18)  # fire when [8, 18) seconds remain before bar close
+MONITOR_INTERVAL = 2   # poll every 2 seconds for precise timing
+_PRE_CLOSE_WINDOW = (9, 11)  # fire when ~10 seconds remain before bar close
 
 _REFERENCE_PAYOUT = 0.80
 _Z = 0.674
