@@ -191,15 +191,15 @@ async def _check_signals() -> None:
         # Only fetch when we're in the pre-close window for this timeframe
         if not _in_pre_close_window(info["timeframe"]):
             continue
-        # For 5-min duration trades, only signal when bar close falls on a
-        # platform-allowed boundary to avoid unenterable expiry times.
-        # Crypto: 15-min boundaries (:00, :15, :30, :45)
-        # Forex:   5-min boundaries (:00, :05, :10, ... :55)
-        if info["trade_duration"] == 5:
+        # Only signal when bar close aligns with the trade duration boundary.
+        # Crypto 15-min trades: :00/:15/:30/:45
+        # Forex   5-min trades: :00/:05/:10/...:55
+        # Forex   1-min trades: every bar passes
+        trade_dur = info["trade_duration"]
+        if trade_dur > 1:
             secs = _seconds_until_bar_close(info["timeframe"])
             close_minute = ((int(time.time()) + secs) // 60) % 60
-            boundary = 15 if not info["is_forex"] else 5
-            if close_minute % boundary != 0:
+            if close_minute % trade_dur != 0:
                 continue
         # Forex: check daily credit budget
         if info["is_forex"] and not _use_credit():

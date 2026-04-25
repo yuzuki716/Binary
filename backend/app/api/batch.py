@@ -38,9 +38,9 @@ CATEGORY_TIMEFRAMES: dict[str, list[str]] = {
     "forex":  ["5m", "15m", "1h"],
 }
 
-# Crypto binary options require 5+ minute trades
+# Crypto platforms only allow 15-minute expiry trades
 CATEGORY_DURATIONS: dict[str, list[int]] = {
-    "crypto": [5],
+    "crypto": [15],
     "forex":  [1, 5],
 }
 
@@ -225,10 +225,13 @@ async def get_batch_results(
     _cat = _SM.get(symbol.upper(), {}).get("category", "crypto")
     _tfs = CATEGORY_TIMEFRAMES.get(_cat, ["5m", "15m", "1h"])
 
+    # Determine durations from actual sims (handles crypto=15 vs forex=1,5)
+    _durs = sorted(set(s.trade_duration for s in sims))
+
     results_by_tf: dict = {}
     for tf in _tfs:
         results_by_tf[tf] = {}
-        for dur in BATCH_DURATIONS:
+        for dur in _durs:
             sim = next((s for s in sims if s.timeframe == tf and s.trade_duration == dur), None)
             if sim is None or sim.status != "COMPLETED":
                 results_by_tf[tf][str(dur)] = []
