@@ -38,9 +38,9 @@ CATEGORY_TIMEFRAMES: dict[str, list[str]] = {
     "forex":  ["5m", "15m", "1h"],
 }
 
-# Crypto platforms only allow 15-minute expiry trades
+# Crypto platforms allow 5-minute expiry but entries only at 15-min boundaries
 CATEGORY_DURATIONS: dict[str, list[int]] = {
-    "crypto": [15],
+    "crypto": [5],
     "forex":  [1, 5],
 }
 
