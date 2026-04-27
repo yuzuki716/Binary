@@ -153,6 +153,16 @@ export default function AutoHomePage() {
     return ev != null && fd != null ? ev - fd : null
   }
 
+  // hourly_ev from backend uses reference payout 0.80.
+  // Recalculate using user's cons_ev: hourly_cons_ev = cons_ev × (hourly_ev / ev_ref)
+  const getHourlyConsEv = (top: TopStrategy, symbolDisplay: string): number | null => {
+    const consEv = getConsEv(top, symbolDisplay)
+    if (consEv == null || top.hourly_ev == null) return null
+    const evRef = top.win_rate * 0.80 - (1 - top.win_rate)
+    if (evRef <= 0) return null
+    return consEv * (top.hourly_ev / evRef)
+  }
+
   // Sort by conservative EV (実効EV), using hourly_ev as tiebreaker for timeframe fairness
   const sorted = [...symbols].sort((a, b) => {
     const topA = a.top_strategy
@@ -283,6 +293,7 @@ export default function AutoHomePage() {
           const evPerTrade = top ? getEvPerTrade(top, sym.symbol_display) : null
           const fixedDiscount = top ? computeFixedDiscount(top.win_rate, top.total_trades) : null
           const consEv = fixedDiscount != null && evPerTrade != null ? evPerTrade - fixedDiscount : null
+          const hourlyConsEv = top ? getHourlyConsEv(top, sym.symbol_display) : null
           const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
           const prVal = payoutRates[sym.symbol_display] ?? ''
           const validPr = !isNaN(parseFloat(prVal)) && parseFloat(prVal) > 0
@@ -345,9 +356,9 @@ export default function AutoHomePage() {
                           1回 {evPerTrade >= 0 ? '+' : ''}{evPerTrade.toFixed(3)}
                         </span>
                       )}
-                      {top?.hourly_ev != null && (
+                      {hourlyConsEv != null && (
                         <span style={{ background: '#0f2a1a', color: '#4ade80', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '4px', border: '1px solid #166534' }}>
-                          毎時 {top.hourly_ev.toFixed(2)}
+                          毎時 {hourlyConsEv >= 0 ? '+' : ''}{hourlyConsEv.toFixed(3)}
                         </span>
                       )}
                       {consEv != null && (
