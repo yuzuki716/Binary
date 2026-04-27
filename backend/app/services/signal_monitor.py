@@ -155,6 +155,10 @@ async def _check_signals() -> None:
         )).all()
 
         best: dict[str, dict] = {}
+        # For forex: only keep the best strategy per symbol (saves API credits).
+        # For crypto: keep best per symbol+timeframe+duration (Binance is free).
+        forex_best_by_symbol: dict[str, dict] = {}
+
         for r, sim in rows:
             payout = payout_map.get(sim.symbol_display)
             if payout is None:
@@ -166,43 +170,62 @@ async def _check_signals() -> None:
             cons_ev = ev - fd
             if cons_ev <= 0:
                 continue
-            key = f"{sim.symbol}|{sim.timeframe}|{sim.trade_duration}"
-            if key not in best:
-                src = SYMBOL_MAP.get(sim.symbol.upper(), {}).get("source", "")
-                best[key] = {
-                    "symbol": sim.symbol,
-                    "symbol_display": sim.symbol_display,
-                    "timeframe": sim.timeframe,
-                    "trade_duration": sim.trade_duration,
-                    "strategy_name": r.strategy_name,
-                    "indicator_family": r.indicator_family,
-                    "win_rate": r.win_rate,
-                    "total_trades": r.total_trades,
-                    "cons_ev": cons_ev,
-                    "ev": ev,
-                    "payout": payout,
-                    "is_forex": src == "yfinance",
-                }
+            src = SYMBOL_MAP.get(sim.symbol.upper(), {}).get("source", "")
+            is_forex = src == "yfinance"
+            entry = {
+                "symbol": sim.symbol,
+                "symbol_display": sim.symbol_display,
+                "timeframe": sim.timeframe,
+                "trade_duration": sim.trade_duration,
+                "strategy_name": r.strategy_name,
+                "indicator_family": r.indicator_family,
+                "win_rate": r.win_rate,
+                "total_trades": r.total_trades,
+                "cons_ev": cons_ev,
+                "ev": ev,
+                "payout": payout,
+                "is_forex": is_forex,
+            }
+            if is_forex:
+                # Keep only the highest consEv strategy per forex symbol
+                prev = forex_best_by_symbol.get(sim.symbol)
+                if prev is None or cons_ev > prev["cons_ev"]:
+                    forex_best_by_symbol[sim.symbol] = entry
+            else:
+                key = f"{sim.symbol}|{sim.timeframe}|{sim.trade_duration}"
+                if key not in best:
+                    best[key] = entry
+
+        # Merge: crypto (all tf/dur) + forex (one per symbol)
+        for entry in forex_best_by_symbol.values():
+            best[entry["symbol"]] = entry
 
     if not best:
         return
 
     for info in best.values():
-        # Only fetch when we're in the pre-close window for this timeframe
-        if not _in_pre_close_window(info["timeframe"]):
-            continue
+        if info["is_forex"]:
+            # Forex: only check at 1h bar close (:00 of every hour).
+            # :00 is simultaneously a valid close for 5m/15m/1h bars, so
+            # signals are still accurate. Limits Twelve Data to 12×24=288/day.
+            if not _in_pre_close_window("1h"):
+                continue
+            if not _use_credit():
+                continue
+        else:
+            # Crypto (Binance, free): check at native timeframe close
+            if not _in_pre_close_window(info["timeframe"]):
+                continue
+
         # Only signal when bar close aligns with the trade duration boundary.
-        # 5-min trades (crypto & forex): :00/:05/:10/...:55
-        # 1-min trades: every bar passes
+        # 5-min trades: :00/:05/:10/...:55  |  1-min trades: every bar passes
         trade_dur = info["trade_duration"]
         if trade_dur > 1:
-            secs = _seconds_until_bar_close(info["timeframe"])
+            check_tf = "1h" if info["is_forex"] else info["timeframe"]
+            secs = _seconds_until_bar_close(check_tf)
             close_minute = ((int(time.time()) + secs) // 60) % 60
             if close_minute % trade_dur != 0:
                 continue
-        # Forex: check daily credit budget
-        if info["is_forex"] and not _use_credit():
-            break
 
         try:
             await _check_one(info)
