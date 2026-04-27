@@ -36,22 +36,18 @@ function timeUntil(unix: number): string {
   return `${Math.floor(diff / 60)}分後`
 }
 
-interface TopStrategy {
+interface StrategyEntry {
   id: number
   sim_id: string
-  strategy_name: string
+  symbol: string
+  symbol_display: string
   timeframe: string
   trade_duration: number
+  strategy_name: string
   win_rate: number
   total_trades: number
   expected_value: number | null
   hourly_ev: number | null
-}
-
-interface SymbolEntry {
-  symbol: string
-  symbol_display: string
-  top_strategy: TopStrategy | null
 }
 
 export default function AutoHomePage() {
@@ -59,7 +55,7 @@ export default function AutoHomePage() {
   const { payoutRates, setPayoutRate, bulkSetPayoutRates } = useStore()
   const [activeCategory, setActiveCategory] = useState('crypto')
   const [autoInfo, setAutoInfo] = useState<Record<string, AutoCategoryInfo>>({})
-  const [summaries, setSummaries] = useState<Record<string, SymbolEntry[]>>({})
+  const [strategies, setStrategies] = useState<Record<string, StrategyEntry[]>>({})
   const [isRunning, setIsRunning] = useState(false)
   const [nextRunAt, setNextRunAt] = useState<number | null>(null)
   const [, setTick] = useState(0)  // triggers 1-second re-renders for countdowns
@@ -86,11 +82,11 @@ export default function AutoHomePage() {
         const info = data.categories[cat]
         if (!info?.batch_id) continue
         try {
-          const { data: summary } = await client.get(
-            `/batch/${info.batch_id}/symbol-summary`,
+          const { data: result } = await client.get(
+            `/batch/${info.batch_id}/all-strategies`,
             { params: { min_trades: 10, min_win_rate: 0.55 } },
           )
-          setSummaries(prev => ({ ...prev, [cat]: summary.symbols || [] }))
+          setStrategies(prev => ({ ...prev, [cat]: result.strategies || [] }))
         } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
@@ -138,41 +134,35 @@ export default function AutoHomePage() {
   }
 
   const catInfo = autoInfo[activeCategory]
-  const symbols: SymbolEntry[] = summaries[activeCategory] || []
+  const allStrategies: StrategyEntry[] = strategies[activeCategory] || []
 
-  const getEvPerTrade = (top: TopStrategy, symbolDisplay: string): number | null => {
-    const pr = parseFloat(payoutRates[symbolDisplay] ?? '')
-    if (!isNaN(pr) && pr > 0 && pr <= 100) return top.win_rate * (pr / 100) - (1 - top.win_rate)
-    if (top.expected_value != null && top.total_trades > 0) return top.expected_value / top.total_trades
+  const getEvPerTrade = (s: StrategyEntry): number | null => {
+    const pr = parseFloat(payoutRates[s.symbol_display] ?? '')
+    if (!isNaN(pr) && pr > 0 && pr <= 100) return s.win_rate * (pr / 100) - (1 - s.win_rate)
+    if (s.expected_value != null && s.total_trades > 0) return s.expected_value / s.total_trades
     return null
   }
 
-  const getConsEv = (top: TopStrategy, symbolDisplay: string): number | null => {
-    const ev = getEvPerTrade(top, symbolDisplay)
-    const fd = computeFixedDiscount(top.win_rate, top.total_trades)
+  const getConsEv = (s: StrategyEntry): number | null => {
+    const ev = getEvPerTrade(s)
+    const fd = computeFixedDiscount(s.win_rate, s.total_trades)
     return ev != null && fd != null ? ev - fd : null
   }
 
-  // hourly_ev from backend uses reference payout 0.80.
-  // Recalculate using user's cons_ev: hourly_cons_ev = cons_ev × (hourly_ev / ev_ref)
-  const getHourlyConsEv = (top: TopStrategy, symbolDisplay: string): number | null => {
-    const consEv = getConsEv(top, symbolDisplay)
-    if (consEv == null || top.hourly_ev == null) return null
-    const evRef = top.win_rate * 0.80 - (1 - top.win_rate)
+  const getHourlyConsEv = (s: StrategyEntry): number | null => {
+    const consEv = getConsEv(s)
+    if (consEv == null || s.hourly_ev == null) return null
+    const evRef = s.win_rate * 0.80 - (1 - s.win_rate)
     if (evRef <= 0) return null
-    return consEv * (top.hourly_ev / evRef)
+    return consEv * (s.hourly_ev / evRef)
   }
 
-  // Sort by hourly conservative EV (毎時実効EV) descending
-  const sorted = [...symbols].sort((a, b) => {
-    const topA = a.top_strategy
-    const topB = b.top_strategy
-    const keyA = topA ? (getHourlyConsEv(topA, a.symbol_display) ?? -999) : -999
-    const keyB = topB ? (getHourlyConsEv(topB, b.symbol_display) ?? -999) : -999
-    return keyB - keyA
-  })
+  // Sort by hourly conservative EV descending
+  const sorted = [...allStrategies].sort((a, b) =>
+    (getHourlyConsEv(b) ?? -999) - (getHourlyConsEv(a) ?? -999)
+  )
 
-  const hasResults = sorted.some(s => s.top_strategy != null)
+  const hasResults = sorted.length > 0
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a', paddingBottom: '80px' }}>
@@ -288,23 +278,21 @@ export default function AutoHomePage() {
         )}
 
         {/* Results leaderboard */}
-        {sorted.map((sym, idx) => {
-          const top = sym.top_strategy
-          const evPerTrade = top ? getEvPerTrade(top, sym.symbol_display) : null
-          const fixedDiscount = top ? computeFixedDiscount(top.win_rate, top.total_trades) : null
-          const consEv = fixedDiscount != null && evPerTrade != null ? evPerTrade - fixedDiscount : null
-          const hourlyConsEv = top ? getHourlyConsEv(top, sym.symbol_display) : null
-          const recommended = top != null && top.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
-          const prVal = payoutRates[sym.symbol_display] ?? ''
+        {sorted.map((s, idx) => {
+          const evPerTrade = getEvPerTrade(s)
+          const consEv = getConsEv(s)
+          const hourlyConsEv = getHourlyConsEv(s)
+          const recommended = s.total_trades >= 30 && evPerTrade != null && evPerTrade >= 0.07
+          const prVal = payoutRates[s.symbol_display] ?? ''
           const validPr = !isNaN(parseFloat(prVal)) && parseFloat(prVal) > 0
 
           return (
             <div
-              key={sym.symbol}
+              key={`${s.symbol}|${s.timeframe}|${s.trade_duration}`}
               style={{
                 background: recommended ? '#050f07' : '#0a0f1e',
                 borderRadius: '12px',
-                border: `1px solid ${recommended ? '#16a34a' : (top?.win_rate ?? 0) >= 0.55 ? '#1d3461' : '#1e293b'}`,
+                border: `1px solid ${recommended ? '#16a34a' : s.win_rate >= 0.55 ? '#1d3461' : '#1e293b'}`,
                 marginBottom: '10px',
                 overflow: 'hidden',
               }}
@@ -323,7 +311,7 @@ export default function AutoHomePage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <div style={{ fontSize: '15px', fontWeight: '700', color: '#e2e8f0' }}>
-                      {sym.symbol_display}
+                      {s.symbol_display}
                     </div>
                     {recommended && (
                       <span style={{
@@ -336,18 +324,12 @@ export default function AutoHomePage() {
                     )}
                   </div>
 
-                  {top ? (
-                    <div style={{
-                      fontSize: '12px', color: '#64748b', marginTop: '2px',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {TF_LABEL[top.timeframe]} / {top.trade_duration}分取引 / {top.strategy_name}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '12px', color: '#334155', marginTop: '2px' }}>
-                      条件に合う結果なし
-                    </div>
-                  )}
+                  <div style={{
+                    fontSize: '12px', color: '#64748b', marginTop: '2px',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {TF_LABEL[s.timeframe]} / {s.trade_duration}分取引 / {s.strategy_name}
+                  </div>
 
                   {(evPerTrade != null || consEv != null) && (
                     <div style={{ display: 'flex', gap: '5px', marginTop: '4px', flexWrap: 'wrap' }}>
@@ -375,7 +357,7 @@ export default function AutoHomePage() {
                     <input
                       type="number" min={1} max={99} placeholder="—"
                       value={prVal}
-                      onChange={e => setPayoutRate(sym.symbol_display, e.target.value)}
+                      onChange={e => setPayoutRate(s.symbol_display, e.target.value)}
                       style={{
                         width: '34px', background: 'none', border: 'none',
                         borderBottom: `1px solid ${validPr ? '#6d28d9' : '#334155'}`,
@@ -388,39 +370,31 @@ export default function AutoHomePage() {
                   </div>
                 </div>
 
-                {top ? (
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: '20px', fontWeight: '800', color: winColor(top.win_rate) }}>
-                      {Math.round(top.win_rate * 100)}%
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#475569' }}>{top.total_trades}回</div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: '20px', fontWeight: '800', color: winColor(s.win_rate) }}>
+                    {Math.round(s.win_rate * 100)}%
                   </div>
-                ) : (
-                  <div style={{ fontSize: '12px', color: '#334155' }}>—</div>
-                )}
+                  <div style={{ fontSize: '11px', color: '#475569' }}>{s.total_trades}回</div>
+                </div>
               </div>
 
-              {top && (
-                <>
-                  <div style={{ height: '3px', background: '#1e293b' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${Math.min(top.win_rate * 100, 100)}%`,
-                      background: winColor(top.win_rate),
-                    }} />
-                  </div>
-                  <button
-                    onClick={() => navigate(`/results/${top.sim_id}/chart/${top.id}`)}
-                    style={{
-                      width: '100%', padding: '8px', background: 'none', border: 'none',
-                      borderTop: '1px solid #1e293b', color: '#3b82f6',
-                      fontSize: '12px', cursor: 'pointer', textAlign: 'center',
-                    }}
-                  >
-                    詳細チャートを見る →
-                  </button>
-                </>
-              )}
+              <div style={{ height: '3px', background: '#1e293b' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(s.win_rate * 100, 100)}%`,
+                  background: winColor(s.win_rate),
+                }} />
+              </div>
+              <button
+                onClick={() => navigate(`/results/${s.sim_id}/chart/${s.id}`)}
+                style={{
+                  width: '100%', padding: '8px', background: 'none', border: 'none',
+                  borderTop: '1px solid #1e293b', color: '#3b82f6',
+                  fontSize: '12px', cursor: 'pointer', textAlign: 'center',
+                }}
+              >
+                詳細チャートを見る →
+              </button>
             </div>
           )
         })}
