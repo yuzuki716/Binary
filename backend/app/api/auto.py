@@ -89,7 +89,7 @@ async def monitor_debug(db: AsyncSession = Depends(get_db)):
                     "win_rate": round(r.win_rate, 3),
                     "cons_ev": round(cons_ev, 4),
                     "secs_to_bar_close": secs_to_close,
-                    "in_pre_close_window": 9 <= secs_to_close < 11,
+                    "in_pre_close_window": 5 <= secs_to_close < 17,
                 })
 
     # Bar close countdowns

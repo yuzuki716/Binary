@@ -25,7 +25,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 MONITOR_INTERVAL = 2   # poll every 2 seconds for precise timing
-_PRE_CLOSE_WINDOW = (9, 11)  # fire when ~10 seconds remain before bar close
+_PRE_CLOSE_WINDOW = (5, 17)  # fire when 5-17 seconds remain before bar close
 
 _REFERENCE_PAYOUT = 0.80
 _Z = 0.674
@@ -203,30 +203,39 @@ async def _check_signals() -> None:
     if not best:
         return
 
+    # Evaluate windows once before the loop — _check_one takes ~1s per strategy,
+    # so per-iteration checks would expire the window for later strategies.
+    forex_window_open = _in_pre_close_window("1h")
+    active_crypto_tfs = {
+        tf for tf in _TF_SECONDS if not tf == "1h" and _in_pre_close_window(tf)
+    } | ({"1h"} if _in_pre_close_window("1h") else set())
+
+    # Compute close_minute snapshot for trade-boundary check
+    now_ts = int(time.time())
+
+    to_check = []
     for info in best.values():
         if info["is_forex"]:
-            # Forex: only check at 1h bar close (:00 of every hour).
-            # :00 is simultaneously a valid close for 5m/15m/1h bars, so
-            # signals are still accurate. Limits Twelve Data to 12×24=288/day.
-            if not _in_pre_close_window("1h"):
+            if not forex_window_open:
                 continue
             if not _use_credit():
                 continue
         else:
-            # Crypto (Binance, free): check at native timeframe close
-            if not _in_pre_close_window(info["timeframe"]):
+            if info["timeframe"] not in active_crypto_tfs:
                 continue
 
         # Only signal when bar close aligns with the trade duration boundary.
-        # 5-min trades: :00/:05/:10/...:55  |  1-min trades: every bar passes
         trade_dur = info["trade_duration"]
         if trade_dur > 1:
             check_tf = "1h" if info["is_forex"] else info["timeframe"]
             secs = _seconds_until_bar_close(check_tf)
-            close_minute = ((int(time.time()) + secs) // 60) % 60
+            close_minute = ((now_ts + secs) // 60) % 60
             if close_minute % trade_dur != 0:
                 continue
 
+        to_check.append(info)
+
+    for info in to_check:
         try:
             await _check_one(info)
         except Exception:
