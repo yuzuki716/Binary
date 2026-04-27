@@ -163,12 +163,12 @@ export default function AutoHomePage() {
     return consEv * (top.hourly_ev / evRef)
   }
 
-  // Sort by conservative EV (実効EV), using hourly_ev as tiebreaker for timeframe fairness
+  // Sort by hourly conservative EV (毎時実効EV) descending
   const sorted = [...symbols].sort((a, b) => {
     const topA = a.top_strategy
     const topB = b.top_strategy
-    const keyA = topA ? (getConsEv(topA, a.symbol_display) ?? topA.hourly_ev ?? -999) : -999
-    const keyB = topB ? (getConsEv(topB, b.symbol_display) ?? topB.hourly_ev ?? -999) : -999
+    const keyA = topA ? (getHourlyConsEv(topA, a.symbol_display) ?? -999) : -999
+    const keyB = topB ? (getHourlyConsEv(topB, b.symbol_display) ?? -999) : -999
     return keyB - keyA
   })
 
