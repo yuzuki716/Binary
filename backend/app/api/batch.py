@@ -266,6 +266,59 @@ async def get_batch_results(
     )
 
 
+# ── All strategies flat ranking (category batch) ────────────────────────────
+
+@router.get("/batch/{batch_id}/all-strategies")
+async def get_all_strategies_ranked(
+    batch_id: str,
+    min_trades: int = 10,
+    min_win_rate: float = Query(default=0.55, ge=0.0, le=1.0),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the best strategy per (symbol × timeframe × trade_duration), sorted by hourly_ev."""
+    sims = (await db.execute(
+        select(Simulation).where(Simulation.batch_id == batch_id)
+    )).scalars().all()
+    if not sims:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    results = []
+    for sim in sims:
+        if sim.status != "COMPLETED":
+            continue
+        row = (await db.execute(
+            select(StrategyResult)
+            .where(StrategyResult.sim_id == sim.id)
+            .where(StrategyResult.total_trades >= min_trades)
+            .where(StrategyResult.win_rate >= min_win_rate)
+            .order_by(StrategyResult.expected_value.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+        if row is None:
+            continue
+        hev = _hourly_ev(row.expected_value, sim.timeframe, row.total_bars)
+        results.append({
+            "id": row.id,
+            "sim_id": sim.id,
+            "symbol": sim.symbol,
+            "symbol_display": sim.symbol_display,
+            "timeframe": sim.timeframe,
+            "trade_duration": sim.trade_duration,
+            "strategy_name": row.strategy_name,
+            "indicator_family": row.indicator_family,
+            "win_rate": row.win_rate,
+            "total_trades": row.total_trades,
+            "wins": row.wins,
+            "losses": row.losses,
+            "expected_value": row.expected_value,
+            "hourly_ev": hev,
+            "parameters": row.parameters,
+        })
+
+    results.sort(key=lambda x: (x["hourly_ev"] or 0), reverse=True)
+    return {"batch_id": batch_id, "strategies": results}
+
+
 # ── Per-symbol summary (category batch) ─────────────────────────────────────
 
 @router.get("/batch/{batch_id}/symbol-summary")
